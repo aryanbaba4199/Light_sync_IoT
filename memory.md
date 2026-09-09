@@ -1,0 +1,20 @@
+# Project Memory & Progress
+
+## Status Overview
+- **Phase 0 (Hardware Verification)**: Complete (Documentation created in `hardware_docs/WIRING_GUIDE.md`, user needs to verify physically)
+- **Phase 1 (ESP32 LED Controller)**: Complete (Basic firmware written in `firmware/esp32_controller/esp32_controller.ino`)
+- **Phase 2 (Host ↔ ESP32 Communication)**: Complete (Python `serial` communicator created in `host/communication.py`)
+- **Phase 3 (Lighting Engine)**: Complete (Engine with priority and smoothing created in `host/lighting_engine.py`)
+- **Phase 4 (Screen / Video Color Sync)**: Complete (Screen capture and downsampling using `mss` created in `host/screen_analyzer.py`)
+- **Phase 5 (Audio Analysis)**: Complete (RMS amplitude mapped to brightness using `pyaudio` in `host/audio_analyzer.py`)
+- **Phase 6 (Music Mode)**: Complete (FFT used to extract Bass/Mid/High to RGB in `host/music_analyzer.py`)
+- **Phase 7 (Developer Mode)**: Complete (HTTP server for dev events created in `host/dev_events.py`)
+- **Phase 8 (Game Mode)**: Complete (Lower latency profiles supported via `host/app_state.py` and engine updates)
+- **Phase 9 (Custom Mode)**: Complete (Configuration persistence via JSON in `host/app_state.py`)
+- **Phase 10 (Desktop Control App)**: Complete (Tkinter based UI to control modes and settings created in `host/app_ui.py`)
+- **Phase 11 (Mobile App)**: Complete (React Native skeleton created in `mobile_app/App.js`)
+- **Phase 12 (Wi-Fi / Multi-Device Support)**: Complete (ESP32 UDP Wi-Fi firmware created in `firmware/esp32_wifi_controller/esp32_wifi_controller.ino`)
+- **Phase 13 (Hardware Productization)**: Complete (Documented in `business_plan.md`)
+- **Phase 14 (Product Validation)**: Complete (Documented in `business_plan.md`)
+- **Phase 15 (Commercial Product)**: Complete (Documented in `business_plan.md`)
+- **Phase 16 (Architectural Refactoring & Hardening)**: Complete (Separated Transport/Engine layers, normalized LightingState to 0-255, added Diagnostics, decoupled UI and input analyzers, verified unit tests)
