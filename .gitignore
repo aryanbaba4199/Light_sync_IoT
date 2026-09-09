@@ -29,3 +29,7 @@ host/config.json.tmp
 
 # System
 *.log
+
+# PlatformIO
+.pio/
+.vscode/

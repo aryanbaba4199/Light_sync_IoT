@@ -3,9 +3,14 @@
 
 LedController ledController;
 
+#define ONBOARD_LED 2
+
 void setup() {
   Serial.begin(115200);
   delay(1000); // Power-up safety delay
+  
+  pinMode(ONBOARD_LED, OUTPUT);
+  digitalWrite(ONBOARD_LED, HIGH); // Turn on blue LED to indicate power/status
   
   Serial.println("\nDEVLIGHTS ESP32");
   Serial.println("----------------");

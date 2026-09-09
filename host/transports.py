@@ -32,11 +32,17 @@ class SerialTransport(BaseTransport):
         
         for p in ports:
             # Common USB-to-UART bridge identifiers for ESP32
-            if "SLAB_USBtoUART" in p.device or "usbserial" in p.device or "CH340" in p.description or "UART" in p.description:
+            # Explicitly reject macOS internal/bluetooth ports
+            if "Bluetooth" in p.device or "debug-console" in p.device or "MacBook" in p.device:
+                continue
+            if "SLAB_USBtoUART" in p.device or "usbserial" in p.device or "CH340" in p.description or "UART" in p.description or "CP210" in p.description:
                 return p.device
-        # Fallback to the first available if none match perfectly
-        if ports:
-            return ports[0].device
+                
+        # If no strict match, find the first port that isn't a known internal port
+        for p in ports:
+            if "Bluetooth" not in p.device and "debug-console" not in p.device and "MacBook" not in p.device and p.device.startswith("/dev/cu."):
+                return p.device
+                
         return None
 
     def connect(self) -> bool:
@@ -46,7 +52,6 @@ class SerialTransport(BaseTransport):
                 
             port_to_use = self.port or self._auto_discover_port()
             if not port_to_use:
-                print("No suitable serial port found.")
                 return False
                 
             try:
@@ -59,6 +64,7 @@ class SerialTransport(BaseTransport):
             except serial.SerialException as e:
                 print(f"Serial Connect Failed: {e}")
                 self.ser = None
+                self.port = None # Clear cached port so we can re-discover
                 return False
 
     def disconnect(self):
@@ -97,6 +103,7 @@ class SerialTransport(BaseTransport):
                 print(f"Connection lost or timeout during serial write: {e}. Disconnecting.")
                 self.ser.close()
                 self.ser = None
+                self.port = None # Clear cached port so we can re-discover
                 return False
 
 class UDPTransport(BaseTransport):
