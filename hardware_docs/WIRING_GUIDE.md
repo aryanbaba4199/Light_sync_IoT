@@ -19,12 +19,12 @@ External 5V Power Supply
                      │
 ESP32 GND ───────────┘  <-- IMPORTANT: Common Ground
 
-ESP32 GPIO 2 (or any data pin) ────────► WS2812B DIN (Data In)
+ESP32 GPIO 5 (or D5) ────────► WS2812B DIN (Data In)
 ```
 
 ## Checklist before powering on:
 1. [ ] ESP32 is connected to the computer via USB for programming.
 2. [ ] External 5V supply is connected to the LED strip's 5V and GND.
 3. [ ] ESP32 GND is connected to the LED strip GND (Common Ground).
-4. [ ] ESP32 Data pin (e.g., GPIO 2) is connected to the LED strip's DIN (Data In) pin. (A 330-470 ohm resistor on the data line is recommended for protection).
+4. [ ] ESP32 Data pin (GPIO 5) is connected to the LED strip's DIN (Data In) pin. (A 330-470 ohm resistor on the data line is recommended for protection).
 5. [ ] Ensure voltage is exactly 5V. Do not use a 12V supply for WS2812B.
