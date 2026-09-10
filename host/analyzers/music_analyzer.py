@@ -9,8 +9,8 @@ Features:
   with refractory cooldown periods to prevent double triggers.
 - Reusable Attack-Hold-Decay envelope generators for punchy visual flashes.
 - Dual-mode Bass: sustained musical energy for smooth/pulse, transient onset energy for flash.
-- Melody harmonic prominence in 400–4000 Hz with local spectral normalization and 0.25/0.15 hysteresis.
-- Vocal speech/singing formant concentration with noise gating (0.20/0.12).
+- Melody harmonic prominence in 400–4000 Hz with local spectral normalization and hysteresis.
+- Vocal speech/singing formant concentration with noise gating.
 - Native audio sample rate detection from sounddevice input device.
 - Live telemetry metrics published to Diagnostics.
 """
@@ -48,7 +48,7 @@ class AdaptiveNoiseFloor:
     Asymmetric leaky integrator for per-band and overall noise floor tracking.
     Adapts downward quickly when quiet; creeps upward smoothly to track ambient noise floors.
     """
-    def __init__(self, alpha_up: float = 0.035, alpha_down: float = 0.05, margin: float = 1.30):
+    def __init__(self, alpha_up: float = 0.035, alpha_down: float = 0.05, margin: float = 1.25):
         self.alpha_up = alpha_up
         self.alpha_down = alpha_down
         self.margin = margin
@@ -155,37 +155,40 @@ class SpectralFeatureExtractorV2(BaseFeatureExtractor):
     """
     Audio Analysis Engine V2:
     - Low-cut rumble filter (< 40 Hz)
-    - Adaptive Noise Floor subtraction
+    - Adaptive Noise Floor subtraction with tuned musical sensitivity
     - Master Musical Activity Gate
     - Transient Onset + Attack-Hold-Decay for Kick, Snare, HiHat
     - Dual-mode Bass (Sustained + Flash transient)
     - Melody harmonic peak prominence with Hysteresis
     - Vocal speech formant concentration with noise gating
+    - Brass spectral centroid and harmonic focus
+    - Beat weighted rhythmic combination
+    - Overall musical energy representation
     """
     def __init__(self, sample_rate: int = 44100):
         self.sample_rate = sample_rate
 
-        # Noise Floor Trackers
-        self.noise_tracker = AdaptiveNoiseFloor(alpha_up=0.035, alpha_down=0.05, margin=1.30)
+        # Noise Floor Trackers (Tuned margins: 1.20-1.25)
+        self.noise_tracker = AdaptiveNoiseFloor(alpha_up=0.035, alpha_down=0.05, margin=1.25)
 
         # Master Activity Gate (Hysteresis)
         self.music_gate = HysteresisGate(open_thresh=0.015, close_thresh=0.008)
 
-        # Transient Onset Detectors
-        self.kick_detector = TransientDetector(min_energy=0.8, min_rise=0.6, refractory_sec=0.090)
-        self.snare_detector = TransientDetector(min_energy=1.2, min_rise=0.8, refractory_sec=0.100)
-        self.hihat_detector = TransientDetector(min_energy=0.3, min_rise=0.25, refractory_sec=0.070)
-        self.bass_transient_detector = TransientDetector(min_energy=0.8, min_rise=0.6, refractory_sec=0.090)
+        # Transient Onset Detectors (Tuned for ~80-85% responsiveness)
+        self.kick_detector = TransientDetector(min_energy=0.68, min_rise=0.45, refractory_sec=0.085)
+        self.snare_detector = TransientDetector(min_energy=1.05, min_rise=0.62, refractory_sec=0.090)
+        self.hihat_detector = TransientDetector(min_energy=0.26, min_rise=0.20, refractory_sec=0.065)
+        self.bass_transient_detector = TransientDetector(min_energy=0.68, min_rise=0.45, refractory_sec=0.085)
 
         # Attack-Hold-Decay Envelopes for Drum Transients
-        self.kick_env = TransientEnvelope(hold_sec=0.040, decay_sec=0.140)
-        self.snare_env = TransientEnvelope(hold_sec=0.035, decay_sec=0.150)
-        self.hihat_env = TransientEnvelope(hold_sec=0.020, decay_sec=0.090)
-        self.bass_transient_env = TransientEnvelope(hold_sec=0.040, decay_sec=0.140)
+        self.kick_env = TransientEnvelope(hold_sec=0.040, decay_sec=0.130)
+        self.snare_env = TransientEnvelope(hold_sec=0.035, decay_sec=0.140)
+        self.hihat_env = TransientEnvelope(hold_sec=0.018, decay_sec=0.085)
+        self.bass_transient_env = TransientEnvelope(hold_sec=0.040, decay_sec=0.130)
 
         # Hysteresis Gates for Sustained Features
-        self.melody_gate = HysteresisGate(open_thresh=0.25, close_thresh=0.15)
-        self.vocal_gate = HysteresisGate(open_thresh=0.20, close_thresh=0.12)
+        self.melody_gate = HysteresisGate(open_thresh=0.22, close_thresh=0.12)
+        self.vocal_gate = HysteresisGate(open_thresh=0.18, close_thresh=0.10)
 
         # Smooth memory for sustained features
         self.smooth_features = {
@@ -235,35 +238,42 @@ class SpectralFeatureExtractorV2(BaseFeatureExtractor):
         mag[low_cut_mask] = 0.0
 
         # 5. Extract Raw Band Energies & Update Adaptive Noise Floors
+        # Bass: 45–150 Hz (Noise margin 1.40 preserves rejection of low-end leakage)
         bass_mask = (f >= 45) & (f <= 150)
         raw_bass = float(np.mean(mag[bass_mask])) if np.any(bass_mask) else 0.0
         eff_bass = self.noise_tracker.update("bass", raw_bass, custom_margin=1.40)
 
+        # Kick: 45–120 Hz (Tuned margin 1.25 for quick transient reaction)
         kick_mask = (f >= 45) & (f <= 120)
         raw_kick = float(np.mean(mag[kick_mask])) if np.any(kick_mask) else 0.0
-        eff_kick = self.noise_tracker.update("kick", raw_kick, custom_margin=1.35)
+        eff_kick = self.noise_tracker.update("kick", raw_kick, custom_margin=1.25)
 
+        # Snare: 250–1500 Hz (Tuned margin 1.22)
         snare_mask = (f >= 250) & (f <= 1500)
         raw_snare = float(np.mean(mag[snare_mask])) if np.any(snare_mask) else 0.0
-        eff_snare = self.noise_tracker.update("snare", raw_snare, custom_margin=1.30)
+        eff_snare = self.noise_tracker.update("snare", raw_snare, custom_margin=1.22)
 
+        # Hi-Hat: 5500–16000 Hz (Tuned margin 1.20)
         hihat_mask = (f >= 5500) & (f <= 16000)
         raw_hihat = float(np.mean(mag[hihat_mask])) if np.any(hihat_mask) else 0.0
-        eff_hihat = self.noise_tracker.update("hihat", raw_hihat, custom_margin=1.30)
+        eff_hihat = self.noise_tracker.update("hihat", raw_hihat, custom_margin=1.20)
 
+        # Vocal: 300–3200 Hz (Tuned margin 1.22)
         vocal_mask = (f >= 300) & (f <= 3200)
         raw_vocal = float(np.mean(mag[vocal_mask])) if np.any(vocal_mask) else 0.0
-        eff_vocal = self.noise_tracker.update("vocal", raw_vocal, custom_margin=1.30)
+        eff_vocal = self.noise_tracker.update("vocal", raw_vocal, custom_margin=1.22)
 
+        # Brass: 500–3500 Hz (Tuned margin 1.22)
         brass_mask = (f >= 500) & (f <= 3500)
         raw_brass = float(np.mean(mag[brass_mask])) if np.any(brass_mask) else 0.0
-        eff_brass = self.noise_tracker.update("brass", raw_brass, custom_margin=1.30)
+        eff_brass = self.noise_tracker.update("brass", raw_brass, custom_margin=1.22)
 
+        # Melody: 400–4000 Hz (Tuned margin 1.22)
         melody_mask = (f >= 400) & (f <= 4000)
         raw_melody = float(np.mean(mag[melody_mask])) if np.any(melody_mask) else 0.0
-        eff_melody = self.noise_tracker.update("melody", raw_melody, custom_margin=1.30)
+        eff_melody = self.noise_tracker.update("melody", raw_melody, custom_margin=1.22)
 
-        # 5. Master Gate Closed (Silence or Constant Ambient Noise)
+        # 6. Master Gate Closed (Silence or Constant Ambient Noise)
         if not is_music_active:
             for k in self.smooth_features:
                 self.smooth_features[k] *= 0.6
@@ -294,16 +304,20 @@ class SpectralFeatureExtractorV2(BaseFeatureExtractor):
                 bass_transient=float(self.bass_transient_env.current_val)
             )
 
-        # 6. Music Active -> Extract Features & Detect Transients
+        # 7. Music Active -> Extract Features & Detect Transients
         # Bass
-        sustained_bass = min(1.0, max(0.0, (eff_bass - 0.5) * 0.18))
+        sustained_bass = min(1.0, max(0.0, (eff_bass - 0.45) * 0.20))
         bass_trig, bass_trig_int = self.bass_transient_detector.process(eff_bass, now)
         if bass_trig:
             self.bass_transient_env.trigger(bass_trig_int, now)
         bass_transient_val = self.bass_transient_env.update(now)
 
-        # Kick
+        # Kick: must have genuine low-end dominance over snare band
         kick_trig, kick_int = self.kick_detector.process(eff_kick, now)
+        # Suppress kick trigger if snare energy vastly exceeds kick energy (e.g. sharp mid snare hit)
+        if kick_trig and (eff_snare > eff_kick * 2.2):
+            kick_trig = False
+            kick_int = 0.0
         if kick_trig:
             self.kick_env.trigger(kick_int, now)
         kick_val = self.kick_env.update(now)
@@ -320,59 +334,71 @@ class SpectralFeatureExtractorV2(BaseFeatureExtractor):
             self.hihat_env.trigger(hihat_int, now)
         hihat_val = self.hihat_env.update(now)
 
-        # Vocal
-        vocal_candidate = min(1.0, max(0.0, (eff_vocal - 0.8) * 0.15))
+        # Vocal: Speech and singing formant presence with spectral concentration
+        # Uses mid-range energy with improved normalization
+        broadband_mask = (f >= 60) & (f <= 16000)
+        broadband_energy = float(np.mean(mag[broadband_mask])) if np.any(broadband_mask) else 1e-6
+        vocal_ratio = raw_vocal / (broadband_energy + 1e-6)
+        # Check that energy isn't solely concentrated in deep sub-bass (< 120 Hz)
+        low_energy = float(np.mean(mag[(f >= 45) & (f <= 150)])) if np.any(bass_mask) else 0.0
+        vocal_weight = 1.0 if raw_vocal >= low_energy * 0.25 else 0.5
+        vocal_candidate = min(1.0, max(0.0, (eff_vocal - 0.55) * 0.19 * vocal_weight))
         vocal_val = vocal_candidate if self.vocal_gate.update(vocal_candidate) else 0.0
 
-        # Brass
+        # Brass: Spectral centroid focus in horn formant range (1200-2800 Hz)
         if np.any(brass_mask):
             brass_mag = mag[brass_mask]
             brass_f = f[brass_mask]
             total_m = np.sum(brass_mag)
             centroid = np.sum(brass_f * brass_mag) / (total_m + 1e-6)
             c_factor = 1.0 if (1200 <= centroid <= 2800) else 0.5
-            brass_val = min(1.0, max(0.0, eff_brass * 0.06 * c_factor))
+            brass_val = min(1.0, max(0.0, eff_brass * 0.075 * c_factor))
         else:
             brass_val = 0.0
 
-        # Melody
-        if np.any(melody_mask) and eff_melody > 0.5:
+        # Melody: Peak prominence + harmonic prominence in 400-4000 Hz
+        if np.any(melody_mask) and eff_melody > 0.4:
             melody_mag = mag[melody_mask]
-            sorted_peaks = np.sort(melody_mag)[-3:]
+            sorted_peaks = np.sort(melody_mag)[-4:]
             median_energy = float(np.median(melody_mag)) + 1e-6
             peak_prominence = float(np.mean(sorted_peaks)) / median_energy
-            melody_candidate = min(1.0, max(0.0, (peak_prominence - 2.5) * 0.22))
+            melody_candidate = min(1.0, max(0.0, (peak_prominence - 2.2) * 0.24))
         else:
             melody_candidate = 0.0
         melody_val = melody_candidate if self.melody_gate.update(melody_candidate) else 0.0
 
-        # Beat
+        # Beat: Rhythmic combination of transients + spectral flux
         if self.prev_spectrum is not None and len(self.prev_spectrum) == len(mag):
             flux = np.sum(np.maximum(0.0, mag - self.prev_spectrum))
-            beat_val = min(1.0, max(0.0, float(flux * 0.00010)))
+            flux_val = min(1.0, max(0.0, float(flux * 0.00010)))
         else:
-            beat_val = kick_val
+            flux_val = 0.0
         self.prev_spectrum = mag.copy()
 
-        # Overall
-        overall_val = min(1.0, max(0.0, effective_rms * 6.0))
+        # Weighted combination of rhythmically active components
+        beat_val = min(1.0, max(0.0, 0.45 * kick_val + 0.30 * snare_val + 0.15 * hihat_val + 0.10 * flux_val))
+
+        # Overall: Blended RMS and multi-feature activity
+        rms_component = min(1.0, max(0.0, effective_rms * 6.0))
+        feature_mean = (kick_val + snare_val + hihat_val + sustained_bass + vocal_val + melody_val) / 6.0
+        overall_val = min(1.0, max(0.0, 0.65 * rms_component + 0.35 * feature_mean))
 
         # =========================================================================
-        # 6. SMOOTHING FOR SUSTAINED FEATURES
+        # 8. SMOOTHING FOR SUSTAINED FEATURES
         # =========================================================================
         sustained_updates = {
-            "bass": sustained_bass,
-            "vocal": vocal_val,
-            "brass": brass_val,
-            "melody": melody_val,
-            "beat": beat_val,
-            "overall": overall_val
+            "bass": (sustained_bass, 0.60, 0.20),
+            "vocal": (vocal_val, 0.55, 0.18),
+            "brass": (brass_val, 0.50, 0.18),
+            "melody": (melody_val, 0.50, 0.16),
+            "beat": (beat_val, 0.65, 0.25),
+            "overall": (overall_val, 0.58, 0.20)
         }
 
-        # Musical attack/release for sustained elements
-        for k, target in sustained_updates.items():
+        # Musical attack/release per sustained feature
+        for k, (target, attack_rate, release_rate) in sustained_updates.items():
             prev = self.smooth_features[k]
-            rate = 0.55 if target > prev else 0.18
+            rate = attack_rate if target > prev else release_rate
             self.smooth_features[k] = prev * (1.0 - rate) + target * rate
             if self.smooth_features[k] < 0.01:
                 self.smooth_features[k] = 0.0
