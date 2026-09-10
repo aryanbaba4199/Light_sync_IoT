@@ -148,6 +148,13 @@ export class MockLightingService implements ILightingService {
     this.notifyState();
   }
 
+  async triggerDeveloperEvent(event: string, _priority?: number, _duration?: number): Promise<void> {
+    this.state.developerState = (event.includes('BUILD') ? 'BUILDING' : event.includes('TEST') ? 'TESTING' : 'IDLE') as any;
+    this.state.developerEvent = event;
+    this.state.developerEventTimestamp = Date.now() / 1000;
+    this.notifyState();
+  }
+
   async restartAll(): Promise<boolean> {
     console.log('[MockService] Restarted all');
     this.notifyState();

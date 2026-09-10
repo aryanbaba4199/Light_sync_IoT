@@ -25,6 +25,10 @@ class AppState:
             from custom_effects import DEFAULT_EFFECT_CONFIGS
         except ImportError:
             from host.custom_effects import DEFAULT_EFFECT_CONFIGS
+        try:
+            from developer_models import DeveloperLayout
+        except ImportError:
+            from host.developer_models import DeveloperLayout
         self.led_count = LED_COUNT
 
         # Default settings
@@ -51,7 +55,11 @@ class AppState:
                 "mid_color": {"r": 0, "g": 255, "b": 0},
                 "treb_color": {"r": 0, "g": 0, "b": 255}
             },
-            "developer": {"smoothing": 0.8, "brightness_limit": 0.7},
+            "developer": {
+                "smoothing": 0.8,
+                "brightness_limit": 0.7,
+                "zones": DeveloperLayout.default(LED_COUNT).to_dict()
+            },
             "game": {"smoothing": 0.2, "brightness_limit": 1.0}, 
             "custom": {
                 "effect": "rainfall",
@@ -68,6 +76,7 @@ class AppState:
         self._ensure_music_mappings()
         self._ensure_movie_settings()
         self._ensure_custom_settings()
+        self._ensure_developer_settings()
 
     def _ensure_movie_settings(self):
         movie_conf = self.settings.setdefault("movie", {})
@@ -129,6 +138,34 @@ class AppState:
         if dirty:
             self.save()
 
+    def _ensure_developer_settings(self):
+        try:
+            from developer_models import DeveloperLayout
+        except ImportError:
+            from host.developer_models import DeveloperLayout
+
+        dev_conf = self.settings.setdefault("developer", {})
+        dirty = False
+        if "smoothing" not in dev_conf:
+            dev_conf["smoothing"] = 0.8
+            dirty = True
+        if "brightness_limit" not in dev_conf:
+            dev_conf["brightness_limit"] = 0.7
+            dirty = True
+
+        default_layout = DeveloperLayout.default(self.led_count)
+        if "zones" not in dev_conf or not isinstance(dev_conf["zones"], dict) or not dev_conf["zones"]:
+            dev_conf["zones"] = default_layout.to_dict()
+            dirty = True
+        else:
+            default_dict = default_layout.to_dict()
+            for z_name, z_val in default_dict.items():
+                if z_name not in dev_conf["zones"]:
+                    dev_conf["zones"][z_name] = z_val
+                    dirty = True
+
+        if dirty:
+            self.save()
         
     def _ensure_music_mappings(self):
         from music_models import DEFAULT_3_BAND_PRESET
@@ -421,3 +458,62 @@ class AppState:
 
     def get_custom_settings(self) -> dict:
         return self.settings.get("custom", {})
+
+    def get_developer_settings(self) -> dict:
+        return dict(self.settings.get("developer", {}))
+
+    def get_developer_zones(self) -> dict:
+        return dict(self.settings.get("developer", {}).get("zones", {}))
+
+    def get_developer_layout(self):
+        try:
+            from developer_models import DeveloperLayout
+        except ImportError:
+            from host.developer_models import DeveloperLayout
+        zones_data = self.get_developer_zones()
+        return DeveloperLayout.from_dict(zones_data, total_leds=self.led_count)
+
+    def set_developer_zones(self, zones_dict: dict) -> Tuple[bool, Optional[str]]:
+        try:
+            from developer_models import DeveloperLayout
+        except ImportError:
+            from host.developer_models import DeveloperLayout
+
+        if not isinstance(zones_dict, dict):
+            return False, "Zones must be a dictionary mapping zone names to zone data"
+
+        layout = DeveloperLayout.from_dict(zones_dict, total_leds=self.led_count)
+        valid, err = layout.validate()
+        if not valid:
+            return False, err
+
+        dev_conf = self.settings.setdefault("developer", {})
+        dev_conf["zones"] = layout.to_dict()
+        self.save()
+        return True, None
+
+    def set_developer_settings(self, settings_dict: dict) -> Tuple[bool, Optional[str]]:
+        if not isinstance(settings_dict, dict):
+            return False, "Settings must be a dictionary"
+
+        dev_conf = self.settings.setdefault("developer", {})
+        if "zones" in settings_dict:
+            valid, err = self.set_developer_zones(settings_dict["zones"])
+            if not valid:
+                return False, err
+
+        if "smoothing" in settings_dict:
+            try:
+                dev_conf["smoothing"] = max(0.0, min(1.0, float(settings_dict["smoothing"])))
+            except (ValueError, TypeError):
+                return False, "Invalid smoothing value"
+
+        if "brightness_limit" in settings_dict:
+            try:
+                dev_conf["brightness_limit"] = max(0.0, min(1.0, float(settings_dict["brightness_limit"])))
+            except (ValueError, TypeError):
+                return False, "Invalid brightness_limit value"
+
+        self.save()
+        return True, None
+

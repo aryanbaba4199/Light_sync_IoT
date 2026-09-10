@@ -1,5 +1,5 @@
 {
-    "mode": "movie",
+    "mode": "developer",
     "output_mode": "esp32",
     "power_on": true,
     "led_count": 300,
@@ -117,13 +117,261 @@
         },
         "developer": {
             "smoothing": 0.8,
-            "brightness_limit": 0.7
+            "brightness_limit": 0.7,
+            "zones": {
+                "build": {
+                    "name": "build",
+                    "start_led": 1,
+                    "end_led": 75
+                },
+                "test": {
+                    "name": "test",
+                    "start_led": 76,
+                    "end_led": 150
+                },
+                "git": {
+                    "name": "git",
+                    "start_led": 151,
+                    "end_led": 225
+                },
+                "deploy": {
+                    "name": "deploy",
+                    "start_led": 226,
+                    "end_led": 300
+                }
+            }
         },
         "game": {
             "smoothing": 0.2,
             "brightness_limit": 1.0
         },
         "custom": {
+            "effect": "rainfall",
+            "configs": {
+                "static": {
+                    "color": {
+                        "r": 255,
+                        "g": 255,
+                        "b": 255
+                    }
+                },
+                "rainfall": {
+                    "color": {
+                        "r": 0,
+                        "g": 120,
+                        "b": 255
+                    },
+                    "speed": 50,
+                    "active_led_count": 10,
+                    "trail_length": 10
+                },
+                "flash": {
+                    "color": {
+                        "r": 255,
+                        "g": 255,
+                        "b": 255
+                    },
+                    "color_mode": "random",
+                    "palette": [
+                        {
+                            "r": 255,
+                            "g": 0,
+                            "b": 0
+                        },
+                        {
+                            "r": 255,
+                            "g": 120,
+                            "b": 0
+                        },
+                        {
+                            "r": 255,
+                            "g": 255,
+                            "b": 0
+                        },
+                        {
+                            "r": 0,
+                            "g": 255,
+                            "b": 0
+                        },
+                        {
+                            "r": 0,
+                            "g": 150,
+                            "b": 255
+                        },
+                        {
+                            "r": 0,
+                            "g": 50,
+                            "b": 255
+                        },
+                        {
+                            "r": 180,
+                            "g": 0,
+                            "b": 255
+                        },
+                        {
+                            "r": 255,
+                            "g": 0,
+                            "b": 128
+                        }
+                    ],
+                    "speed": 40
+                },
+                "random": {
+                    "active_led_count": 20,
+                    "color_mode": "random",
+                    "color": {
+                        "r": 180,
+                        "g": 0,
+                        "b": 255
+                    },
+                    "palette": [
+                        {
+                            "r": 255,
+                            "g": 0,
+                            "b": 0
+                        },
+                        {
+                            "r": 255,
+                            "g": 120,
+                            "b": 0
+                        },
+                        {
+                            "r": 255,
+                            "g": 255,
+                            "b": 0
+                        },
+                        {
+                            "r": 0,
+                            "g": 255,
+                            "b": 0
+                        },
+                        {
+                            "r": 0,
+                            "g": 150,
+                            "b": 255
+                        },
+                        {
+                            "r": 0,
+                            "g": 50,
+                            "b": 255
+                        },
+                        {
+                            "r": 180,
+                            "g": 0,
+                            "b": 255
+                        },
+                        {
+                            "r": 255,
+                            "g": 0,
+                            "b": 128
+                        }
+                    ],
+                    "speed": 35,
+                    "fade": true,
+                    "min_brightness": 0.0,
+                    "max_brightness": 1.0
+                },
+                "wave": {
+                    "color": {
+                        "r": 0,
+                        "g": 120,
+                        "b": 255
+                    },
+                    "background_color": {
+                        "r": 0,
+                        "g": 10,
+                        "b": 40
+                    },
+                    "speed": 40,
+                    "width": 60,
+                    "direction": "forward"
+                },
+                "comet": {
+                    "color": {
+                        "r": 0,
+                        "g": 220,
+                        "b": 255
+                    },
+                    "speed": 50,
+                    "tail_length": 25,
+                    "direction": "bounce"
+                },
+                "breathing": {
+                    "color": {
+                        "r": 255,
+                        "g": 60,
+                        "b": 0
+                    },
+                    "speed": 30,
+                    "min_brightness": 0.05,
+                    "max_brightness": 1.0
+                },
+                "sparkle": {
+                    "color": {
+                        "r": 255,
+                        "g": 255,
+                        "b": 255
+                    },
+                    "background_color": {
+                        "r": 10,
+                        "g": 10,
+                        "b": 25
+                    },
+                    "speed": 50,
+                    "decay_rate": 0.15
+                },
+                "color_chase": {
+                    "colors": [
+                        {
+                            "r": 255,
+                            "g": 0,
+                            "b": 0
+                        },
+                        {
+                            "r": 0,
+                            "g": 255,
+                            "b": 0
+                        },
+                        {
+                            "r": 0,
+                            "g": 120,
+                            "b": 255
+                        },
+                        {
+                            "r": 180,
+                            "g": 0,
+                            "b": 255
+                        }
+                    ],
+                    "group_size": 15,
+                    "gap": 10,
+                    "speed": 45,
+                    "direction": "forward"
+                },
+                "fire": {
+                    "heat": 70,
+                    "flicker": 60,
+                    "speed": 40,
+                    "brightness": 1.0
+                },
+                "rainbow_flow": {
+                    "speed": 40,
+                    "wavelength": 150,
+                    "saturation": 1.0,
+                    "brightness": 1.0,
+                    "direction": "forward"
+                }
+            },
+            "config": {
+                "color": {
+                    "r": 0,
+                    "g": 120,
+                    "b": 255
+                },
+                "speed": 50,
+                "active_led_count": 10,
+                "trail_length": 10
+            },
             "r": 255,
             "g": 255,
             "b": 255,

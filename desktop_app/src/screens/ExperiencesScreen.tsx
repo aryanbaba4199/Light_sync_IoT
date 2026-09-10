@@ -4,6 +4,7 @@ import { LedStripPreview300 } from '../components/LedStripPreview300';
 import { MusicMappingEditor } from '../components/MusicMappingEditor';
 import { MovieLayoutEditor } from '../components/MovieLayoutEditor';
 import { CustomEffectEditor } from '../components/CustomEffectEditor';
+import { DeveloperModePanel } from '../components/DeveloperModePanel';
 
 export const ExperiencesScreen = () => {
   const { mode, setMode, restartAll } = useLightingStore();
@@ -59,7 +60,11 @@ export const ExperiencesScreen = () => {
           <MovieLayoutEditor />
         )}
 
-        {(mode === 'game' || mode === 'developer') && (
+        {mode === 'developer' && (
+          <DeveloperModePanel />
+        )}
+
+        {mode === 'game' && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <h2 className="text-xl font-bold mb-2 uppercase">{mode} MODE ACTIVE</h2>
             <p className="caption">The lighting engine is actively controlling this experience.</p>

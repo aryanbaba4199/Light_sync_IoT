@@ -79,6 +79,27 @@ class DevLightsAPI:
                 "custom_effect": self.app_state.get_custom_effect() if hasattr(self.app_state, "get_custom_effect") else "rainfall",
                 "custom_config": self.app_state.get_custom_config() if hasattr(self.app_state, "get_custom_config") else {},
                 "custom_settings": self.app_state.get_custom_settings() if hasattr(self.app_state, "get_custom_settings") else {},
+                "developer_state": (
+                    self.engine.developer_event_manager.get_state().value
+                    if hasattr(self.engine, "developer_event_manager") else "IDLE"
+                ),
+                "developer_event": (
+                    self.engine.developer_event_manager.get_active_event().event_type.value
+                    if hasattr(self.engine, "developer_event_manager") and self.engine.developer_event_manager.get_active_event() else None
+                ),
+                "developer_event_timestamp": (
+                    self.engine.developer_event_manager.get_active_event().timestamp
+                    if hasattr(self.engine, "developer_event_manager") and self.engine.developer_event_manager.get_active_event() else None
+                ),
+                "developer_zone_configuration": (
+                    self.app_state.get_developer_zones() if hasattr(self.app_state, "get_developer_zones") else {}
+                ),
+                "developer_zones": (
+                    self.app_state.get_developer_zones() if hasattr(self.app_state, "get_developer_zones") else {}
+                ),
+                "developer_settings": (
+                    self.app_state.get_developer_settings() if hasattr(self.app_state, "get_developer_settings") else {}
+                ),
                 "led_frame": self._get_led_frame_sample(),
                 "led_count": getattr(self.app_state, "led_count", 300),
                 "audio_telemetry": getattr(self.engine, "latest_music_analysis", None).to_dict() if getattr(self.engine, "latest_music_analysis", None) else {}
@@ -312,6 +333,38 @@ class DevLightsAPI:
                 duration = payload.get("duration", 1.0)
                 priority = payload.get("priority", EventPriority.LOW.value)
                 self.engine.trigger_event(r, g, b, duration, EventPriority(priority))
+
+            elif msg_type == "trigger_developer_event":
+                event_name = payload.get("event") or payload.get("event_type")
+                priority = payload.get("priority")
+                duration = payload.get("duration")
+                metadata = payload.get("metadata", {})
+                if hasattr(self.engine, "trigger_developer_event"):
+                    ok, err, res = self.engine.trigger_developer_event(event_name, priority, duration, metadata)
+                    if ok:
+                        await self.broadcast_state()
+                    else:
+                        await self._send_error(websocket, "INVALID_EVENT", err or "Failed to trigger event")
+                else:
+                    await self._send_error(websocket, "NOT_SUPPORTED", "Developer mode not supported by engine")
+
+            elif msg_type == "set_developer_zones":
+                zones_data = payload.get("zones", payload)
+                if hasattr(self.app_state, "set_developer_zones"):
+                    ok, err = self.app_state.set_developer_zones(zones_data)
+                    if not ok:
+                        await self._send_error(websocket, "VALIDATION_ERROR", err or "Invalid developer zones")
+                    else:
+                        await self.broadcast_state()
+
+            elif msg_type == "set_developer_settings":
+                settings_data = payload.get("settings", payload)
+                if hasattr(self.app_state, "set_developer_settings"):
+                    ok, err = self.app_state.set_developer_settings(settings_data)
+                    if not ok:
+                        await self._send_error(websocket, "VALIDATION_ERROR", err or "Invalid developer settings")
+                    else:
+                        await self.broadcast_state()
 
             elif msg_type == "restart_all":
                 logger.info("Restart All requested by user / UI")

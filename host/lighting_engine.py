@@ -9,6 +9,12 @@ try:
     from custom_effects import CustomEffectEngine
 except ImportError:
     from host.custom_effects import CustomEffectEngine
+try:
+    from developer_engine import DeveloperEventManager, DeveloperRenderer
+    from developer_models import DeveloperLayout, DeveloperEventType, DeveloperPriority
+except ImportError:
+    from host.developer_engine import DeveloperEventManager, DeveloperRenderer
+    from host.developer_models import DeveloperLayout, DeveloperEventType, DeveloperPriority
 
 
 class PriorityManager:
@@ -45,6 +51,9 @@ class LightingEngine:
         self.music_mapping_engine = MusicMappingEngine(led_count=self.led_count)
         self.custom_effect_engine = CustomEffectEngine(led_count=self.led_count)
         self.custom_start_time = time.time()
+        dev_layout = app_state.get_developer_layout() if (app_state and hasattr(app_state, "get_developer_layout")) else None
+        self.developer_event_manager = DeveloperEventManager(default_layout=dev_layout)
+        self.developer_renderer = DeveloperRenderer(led_count=self.led_count)
         self.last_mode = None
         self.latest_music_analysis = MusicAnalysis()
         
@@ -108,6 +117,21 @@ class LightingEngine:
         with self.state_lock:
             self.priority_manager.set_event(event_state, duration_sec)
 
+    def trigger_developer_event(
+        self,
+        event_input,
+        priority: Optional[DeveloperPriority] = None,
+        duration: Optional[float] = None,
+        metadata: Optional[dict] = None
+    ):
+        with self.state_lock:
+            return self.developer_event_manager.handle_event(
+                event_input=event_input,
+                priority=priority,
+                duration=duration,
+                metadata=metadata
+            )
+
     def reset_state(self):
         """Clears all frames, resets smoothing buffers, and forces a blackout flush."""
         with self.state_lock:
@@ -119,6 +143,8 @@ class LightingEngine:
             self.smooth_music_multiplier = 1.0
             if hasattr(self, "custom_effect_engine"):
                 self.custom_effect_engine.reset_state()
+            if hasattr(self, "developer_event_manager"):
+                self.developer_event_manager.reset_all()
             self.custom_start_time = time.time()
         if self.transport:
             try:
@@ -232,6 +258,8 @@ class LightingEngine:
                 if current_mode == "custom":
                     self.custom_start_time = time.time()
                     self.custom_effect_engine.reset_state()
+                elif current_mode == "developer" and hasattr(self, "developer_event_manager"):
+                    self.developer_event_manager.reset_transient_event()
                 self.last_mode = current_mode
 
             # ==========================================
@@ -379,6 +407,48 @@ class LightingEngine:
                     frame=rendered_frame,
                     effect_name=custom_effect,
                     config=custom_config
+                )
+
+                if self.transport:
+                    self.transport.send_zones(zones)
+                    self.transport.send_frame(self.led_frame)
+
+                # Compute representative color for virtual UI / render_state
+                active_colors = [c for c in rendered_frame if c != (0, 0, 0)]
+                if active_colors:
+                    avg_r = int(sum(c[0] for c in active_colors) / len(active_colors))
+                    avg_g = int(sum(c[1] for c in active_colors) / len(active_colors))
+                    avg_b = int(sum(c[2] for c in active_colors) / len(active_colors))
+                    avg_bright = int(max(avg_r, avg_g, avg_b))
+                else:
+                    avg_r, avg_g, avg_b, avg_bright = 0, 0, 0, 0
+
+                self.render_state.r = avg_r
+                self.render_state.g = avg_g
+                self.render_state.b = avg_b
+                self.render_state.brightness = avg_bright
+
+            elif current_mode == "developer":
+                # DEVELOPER MODE: Visualizes developer workflow events & state across 4 zones
+                dev_state = self.developer_event_manager.get_state()
+                active_event = self.developer_event_manager.get_active_event()
+                dev_layout = self.app_state.get_developer_layout() if (self.app_state and hasattr(self.app_state, "get_developer_layout")) else self.developer_event_manager.layout
+
+                rendered_frame = self.developer_renderer.render(
+                    state=dev_state,
+                    active_event=active_event,
+                    layout=dev_layout,
+                    global_brightness=user_bright,
+                    mode_limit=mode_limit,
+                    power_on=power_on,
+                    current_time=time.time()
+                )
+                self.led_frame = rendered_frame
+
+                # Protocol V2: Extract compact zones for hardware (<= 42 zones, exactly 4 zones)
+                zones = self.developer_renderer.extract_zones_for_protocol(
+                    frame=rendered_frame,
+                    layout=dev_layout
                 )
 
                 if self.transport:

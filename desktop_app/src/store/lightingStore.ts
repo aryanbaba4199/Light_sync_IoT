@@ -63,6 +63,11 @@ interface LightingStore {
   customEffect: CustomEffectType;
   customConfig: CustomEffectConfig;
   customSettings?: CustomSettings;
+  developerState: 'IDLE' | 'CODING' | 'BUILDING' | 'TESTING' | 'DEPLOYING';
+  developerEvent: string | null;
+  developerEventTimestamp: number | null;
+  developerZones: Record<string, any>;
+  developerSettings: Record<string, any>;
   ledFrame?: [number, number, number][];
   ledCount: number;
   validationWarnings: string[];
@@ -81,6 +86,7 @@ interface LightingStore {
   setBrightness: (brightness: number) => void;
   setCustomEffect: (effect: CustomEffectType) => void;
   setCustomEffectConfig: (effect: CustomEffectType, config: Partial<CustomEffectConfig>) => void;
+  triggerDeveloperEvent: (event: string, priority?: number, duration?: number) => void;
   setMusicResponseMode: (mode: MusicResponseMode) => void;
   setMovieLayout: (layout: Partial<MovieLayout>) => void;
   setMovieMusicSync: (enabled: boolean) => void;
@@ -136,6 +142,11 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
     active_led_count: 10,
     trail_length: 10
   },
+  developerState: 'IDLE',
+  developerEvent: null,
+  developerEventTimestamp: null,
+  developerZones: {},
+  developerSettings: {},
   ledFrame: [],
   ledCount: DEFAULT_LED_COUNT,
   validationWarnings: [],
@@ -179,6 +190,10 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
     const updated = { ...get().customConfig, ...config };
     lightingService.setCustomEffectConfig(effect, updated);
     set({ customConfig: updated });
+  },
+
+  triggerDeveloperEvent: (event, priority, duration) => {
+    lightingService.triggerDeveloperEvent(event, priority, duration);
   },
 
   setMusicResponseMode: (mode) => {
@@ -316,6 +331,11 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
         customEffect: state.customEffect || get().customEffect,
         customConfig: state.customConfig || get().customConfig,
         customSettings: state.customSettings || get().customSettings,
+        developerState: (state as any).developer_state || (state as any).developerState || get().developerState,
+        developerEvent: (state as any).developer_event || (state as any).developerEvent || get().developerEvent,
+        developerEventTimestamp: (state as any).developer_event_timestamp || (state as any).developerEventTimestamp || get().developerEventTimestamp,
+        developerZones: (state as any).developer_zones || (state as any).developerZones || get().developerZones,
+        developerSettings: (state as any).developer_settings || (state as any).developerSettings || get().developerSettings,
         ledFrame: state.ledFrame,
         ledCount: state.ledCount || DEFAULT_LED_COUNT,
         validationWarnings: warnings,

@@ -289,6 +289,10 @@ export class RealLightingService implements ILightingService {
     this.sendCommand('set_custom_config', { effect, config });
   }
 
+  async triggerDeveloperEvent(event: string, priority?: number, duration?: number): Promise<void> {
+    this.sendCommand('trigger_developer_event', { event, priority, duration });
+  }
+
   async restartAll(): Promise<boolean> {
     this.sendCommand('restart_all', {});
     return true;

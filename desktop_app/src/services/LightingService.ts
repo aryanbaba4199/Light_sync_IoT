@@ -26,6 +26,7 @@ export interface ILightingService {
   setMovieMusicSync(enabled: boolean): Promise<void>;
   setMovieSettings(settings: any): Promise<void>;
   setMovieMonitor(monitorIndex: number): Promise<void>;
+  triggerDeveloperEvent(event: string, priority?: number, duration?: number): Promise<void>;
   restartAll(): Promise<boolean>;
 
   

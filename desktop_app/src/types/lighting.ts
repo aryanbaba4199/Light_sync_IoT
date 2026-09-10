@@ -87,6 +87,11 @@ export interface LightingState {
   customEffect?: CustomEffectType;
   customConfig?: CustomEffectConfig;
   customSettings?: CustomSettings;
+  developerState?: 'IDLE' | 'CODING' | 'BUILDING' | 'TESTING' | 'DEPLOYING';
+  developerEvent?: string | null;
+  developerEventTimestamp?: number | null;
+  developerZones?: Record<string, any>;
+  developerSettings?: Record<string, any>;
   ledFrame?: [number, number, number][];
   ledCount?: number;
   virtualFrame?: RGBColor[];
