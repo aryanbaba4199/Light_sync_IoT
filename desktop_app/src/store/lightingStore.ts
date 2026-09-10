@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { LightingMode, RGBColor, TransportType, OutputMode, MusicMapping, MusicInstrument } from '../types/lighting';
+import type { LightingMode, RGBColor, TransportType, OutputMode, MusicMapping, MusicInstrument, MusicResponseMode } from '../types/lighting';
 import { DEFAULT_LED_COUNT } from '../types/lighting';
 import { lightingService } from '../services';
 
@@ -43,6 +43,7 @@ interface LightingStore {
   transport: TransportType;
   engineConnected: boolean;
   musicSettings: any;
+  musicResponseMode: MusicResponseMode;
   musicMappings: MusicMapping[];
   ledCount: number;
   validationWarnings: string[];
@@ -51,6 +52,7 @@ interface LightingStore {
     screen_analyzer?: string;
     music_analyzer?: string;
   };
+  audioTelemetry?: any;
   
   // Actions
   setMode: (mode: LightingMode) => void;
@@ -58,6 +60,7 @@ interface LightingStore {
   setPower: (isOn: boolean) => void;
   setColor: (color: RGBColor) => void;
   setBrightness: (brightness: number) => void;
+  setMusicResponseMode: (mode: MusicResponseMode) => void;
   addMusicMapping: (instrument?: MusicInstrument) => void;
   updateMusicMapping: (id: string, updates: Partial<MusicMapping>) => void;
   deleteMusicMapping: (id: string) => void;
@@ -78,6 +81,7 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
   transport: 'none',
   engineConnected: false,
   musicSettings: { bass_color: {r:255,g:0,b:0}, mid_color: {r:0,g:255,b:0}, treb_color: {r:0,g:0,b:255} },
+  musicResponseMode: 'flash',
   musicMappings: [
     { id: '1', instrument: 'bass', color: { r: 255, g: 0, b: 0 }, startLed: 1, endLed: 100, sensitivity: 1.0, response: 'static', distribution: 'zone', enabled: true, seed: 101 },
     { id: '2', instrument: 'vocal', color: { r: 0, g: 255, b: 0 }, startLed: 101, endLed: 200, sensitivity: 1.0, response: 'static', distribution: 'zone', enabled: true, seed: 102 },
@@ -114,6 +118,11 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
   setBrightness: (brightness) => {
     lightingService.setBrightness(brightness);
     set({ brightness });
+  },
+
+  setMusicResponseMode: (mode) => {
+    lightingService.setMusicResponseMode(mode);
+    set({ musicResponseMode: mode });
   },
 
   addMusicMapping: (instrument = 'bass') => {
@@ -213,9 +222,11 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
         transport: state.transport,
         analyzers: state.analyzers || {},
         musicSettings: (state as any).musicSettings || get().musicSettings,
+        musicResponseMode: state.musicResponseMode || (state as any).musicSettings?.response_mode || get().musicResponseMode,
         musicMappings: mappings,
         ledCount: state.ledCount || DEFAULT_LED_COUNT,
-        validationWarnings: warnings
+        validationWarnings: warnings,
+        audioTelemetry: (state as any).audioTelemetry || get().audioTelemetry
       });
     });
 

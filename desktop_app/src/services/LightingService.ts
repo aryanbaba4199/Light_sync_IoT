@@ -1,4 +1,4 @@
-import type { LightingMode, RGBColor, LightingState } from '../types/lighting';
+import type { LightingMode, RGBColor, LightingState, MusicResponseMode } from '../types/lighting';
 
 export interface ILightingService {
   connect(): Promise<void>;
@@ -19,6 +19,7 @@ export interface ILightingService {
   setMusicMapping(mapping: any): Promise<void>;
   deleteMusicMapping(id: string): Promise<void>;
   applyMusicPreset(presetName: string): Promise<void>;
+  setMusicResponseMode(mode: MusicResponseMode): Promise<void>;
   restartAll(): Promise<boolean>;
   
   // Callbacks

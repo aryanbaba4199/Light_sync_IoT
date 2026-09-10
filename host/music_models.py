@@ -27,6 +27,10 @@ class ResponseEffect(str, Enum):
     FLASH = "flash"
     SMOOTH = "smooth"
 
+class MusicResponseMode(str, Enum):
+    FADE = "fade"
+    FLASH = "flash"
+
 class DistributionType(str, Enum):
     ZONE = "zone"
     RANDOM = "random"
@@ -108,6 +112,12 @@ class MusicAnalysis:
     melody: float = 0.0
     beat: float = 0.0
     overall: float = 0.0
+    # Audio Analysis V2 Trigger and Telemetry fields
+    kick_trigger: bool = False
+    snare_trigger: bool = False
+    hihat_trigger: bool = False
+    music_gate_open: bool = False
+    bass_transient: float = 0.0
 
     def get_feature(self, instrument: str) -> float:
         val = getattr(self, instrument.lower(), 0.0)
@@ -123,7 +133,12 @@ class MusicAnalysis:
             "brass": round(self.brass, 3),
             "melody": round(self.melody, 3),
             "beat": round(self.beat, 3),
-            "overall": round(self.overall, 3)
+            "overall": round(self.overall, 3),
+            "kick_trigger": self.kick_trigger,
+            "snare_trigger": self.snare_trigger,
+            "hihat_trigger": self.hihat_trigger,
+            "music_gate_open": self.music_gate_open,
+            "bass_transient": round(self.bass_transient, 3)
         }
 
 def validate_mapping(mapping: MusicMapping, max_leds: int = LED_COUNT) -> Tuple[bool, Optional[str]]:

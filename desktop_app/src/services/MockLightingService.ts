@@ -1,5 +1,5 @@
 import type { ILightingService } from './LightingService';
-import type { LightingMode, RGBColor, LightingState } from '../types/lighting';
+import type { LightingMode, RGBColor, LightingState, MusicResponseMode } from '../types/lighting';
 
 export class MockLightingService implements ILightingService {
   private state: LightingState = {
@@ -91,6 +91,15 @@ export class MockLightingService implements ILightingService {
 
   async applyMusicPreset(presetName: string): Promise<void> {
     console.log('[MockService] Applied preset', presetName);
+    this.notifyState();
+  }
+
+  async setMusicResponseMode(mode: MusicResponseMode): Promise<void> {
+    this.state.musicResponseMode = mode;
+    this.state.musicSettings = {
+      ...(this.state.musicSettings || {}),
+      response_mode: mode
+    };
     this.notifyState();
   }
 

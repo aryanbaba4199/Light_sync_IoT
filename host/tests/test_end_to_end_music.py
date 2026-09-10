@@ -52,6 +52,7 @@ class TestEndToEndMusic(unittest.TestCase):
 
             # 2. Switch to Music Mode (Protocol V2)
             self.app_state.set_mode(AppMode.MUSIC)
+            self.app_state.set_music_response_mode("fade")
             self.app_state.apply_music_preset("default_3_band")
 
             # Feed music analysis

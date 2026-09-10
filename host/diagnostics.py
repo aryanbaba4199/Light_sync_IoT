@@ -23,7 +23,12 @@ class Diagnostics:
             "transport_type": "None",
             "current_mode": "None",
             "current_rgb": (0, 0, 0),
-            "current_brightness": 0
+            "current_brightness": 0,
+            "audio_noise_floor": 0.0,
+            "audio_music_gate": False,
+            "audio_kick_trigger": False,
+            "audio_snare_trigger": False,
+            "audio_hihat_trigger": False
         }
         self._frame_times = []
         self._last_frame_time = time.time()

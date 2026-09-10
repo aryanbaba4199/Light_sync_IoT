@@ -25,6 +25,7 @@ class AppState:
             "music": {
                 "smoothing": 0.5, 
                 "brightness_limit": 1.0,
+                "response_mode": "flash",
                 "mappings": [dict(m) for m in DEFAULT_3_BAND_PRESET],
                 "bass_color": {"r": 255, "g": 0, "b": 0},
                 "mid_color": {"r": 0, "g": 255, "b": 0},
@@ -40,6 +41,14 @@ class AppState:
     def _ensure_music_mappings(self):
         from music_models import DEFAULT_3_BAND_PRESET
         music_conf = self.settings.setdefault("music", {})
+        dirty = False
+        if "response_mode" not in music_conf or music_conf["response_mode"] not in ["fade", "flash"]:
+            if "responseMode" in music_conf and music_conf["responseMode"] in ["fade", "flash"]:
+                music_conf["response_mode"] = music_conf["responseMode"]
+            else:
+                music_conf["response_mode"] = "flash"
+            dirty = True
+
         if "mappings" not in music_conf or not isinstance(music_conf["mappings"], list) or len(music_conf["mappings"]) == 0:
             music_conf["mappings"] = [dict(m) for m in DEFAULT_3_BAND_PRESET]
             # If legacy colors were set, migrate them to the 3 band preset
@@ -49,6 +58,9 @@ class AppState:
                 music_conf["mappings"][1]["color"] = music_conf["mid_color"]
             if "treb_color" in music_conf:
                 music_conf["mappings"][2]["color"] = music_conf["treb_color"]
+            dirty = True
+
+        if dirty:
             self.save()
 
     def load(self):
@@ -168,6 +180,16 @@ class AppState:
         if preset_name in PRESETS:
             preset_mappings = [dict(m) for m in PRESETS[preset_name]]
             self.settings.setdefault("music", {})["mappings"] = preset_mappings
+            self.save()
+            return True
+        return False
+
+    def get_music_response_mode(self) -> str:
+        return self.settings.get("music", {}).get("response_mode", "flash")
+
+    def set_music_response_mode(self, mode: str) -> bool:
+        if mode in ["fade", "flash"]:
+            self.settings.setdefault("music", {})["response_mode"] = mode
             self.save()
             return True
         return False

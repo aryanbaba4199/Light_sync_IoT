@@ -31,6 +31,8 @@ export const MusicMappingEditor = () => {
     musicMappings,
     ledCount,
     validationWarnings,
+    musicResponseMode,
+    setMusicResponseMode,
     addMusicMapping,
     updateMusicMapping,
     deleteMusicMapping,
@@ -61,10 +63,39 @@ export const MusicMappingEditor = () => {
             <Volume2 className="text-dev-primary" size={20} />
             Instrument Mappings
           </h2>
-          <p className="caption">Map individual instruments & frequency features to independent LED zones.</p>
+          <p className="caption">
+            Map individual instruments & frequency features to independent LED zones.
+            <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-dev-surface border border-dev-border text-dev-text-secondary">
+              Style: <strong className="text-dev-primary uppercase">{musicResponseMode}</strong> ({musicResponseMode === 'flash' ? '0% / 100% Binary Flash' : 'Continuous Envelope Fade'})
+            </span>
+          </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Response Style Segmented Switcher: FADE | FLASH */}
+          <div className="flex items-center bg-dev-surface-pressed p-1 rounded-xl border border-dev-border">
+            <button
+              onClick={() => setMusicResponseMode('fade')}
+              className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all border-none cursor-pointer ${
+                musicResponseMode === 'fade'
+                  ? 'bg-dev-primary text-white shadow-md ring-1 ring-dev-primary/50'
+                  : 'bg-transparent text-dev-text-secondary hover:text-white hover:bg-dev-surface/40'
+              }`}
+            >
+              FADE
+            </button>
+            <button
+              onClick={() => setMusicResponseMode('flash')}
+              className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all border-none cursor-pointer ${
+                musicResponseMode === 'flash'
+                  ? 'bg-dev-primary text-white shadow-md ring-1 ring-dev-primary/50'
+                  : 'bg-transparent text-dev-text-secondary hover:text-white hover:bg-dev-surface/40'
+              }`}
+            >
+              FLASH
+            </button>
+          </div>
+
           <div className="flex items-center gap-1 bg-dev-surface-pressed p-1 rounded-lg border border-dev-border">
             <span className="text-xs font-semibold px-2 text-dev-text-muted">Presets:</span>
             <button

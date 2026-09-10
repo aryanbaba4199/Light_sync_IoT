@@ -148,6 +148,7 @@ class LightingEngine:
                 # MUSIC MODE: Multi-zone & independent instrument rendering
                 raw_mappings = self.app_state.get_music_mappings() if self.app_state else []
                 mappings = [MusicMapping.from_dict(m) for m in raw_mappings]
+                response_mode = self.app_state.get_music_response_mode() if self.app_state else "flash"
 
                 # Render 300-LED frame buffer
                 frame = self.music_mapping_engine.render_frame(
@@ -155,7 +156,8 @@ class LightingEngine:
                     mappings=mappings,
                     user_brightness=user_bright,
                     mode_limit=mode_limit,
-                    power_on=power_on
+                    power_on=power_on,
+                    response_mode=response_mode
                 )
                 self.led_frame = frame
 
@@ -165,7 +167,8 @@ class LightingEngine:
                     mappings=mappings,
                     user_brightness=user_bright,
                     mode_limit=mode_limit,
-                    power_on=power_on
+                    power_on=power_on,
+                    response_mode=response_mode
                 )
 
                 if self.transport:

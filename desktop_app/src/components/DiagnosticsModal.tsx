@@ -41,6 +41,79 @@ export const DiagnosticsModal = ({ onClose }: { onClose: () => void }) => {
             </div>
           </div>
 
+          {/* AUDIO ANALYSIS V2 TELEMETRY CARD */}
+          <div className="bg-dev-surface-elevated p-5 rounded-lg border border-dev-border space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-sm text-dev-text">Audio Analysis V2 Telemetry</h3>
+                <span className="caption text-xs">Real-time noise floor rejection & transient onset detectors</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="caption text-xs">Music Gate:</span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                  state.audioTelemetry?.music_gate_open 
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' 
+                    : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                }`}>
+                  {state.audioTelemetry?.music_gate_open ? 'OPEN (ACTIVE)' : 'CLOSED (IDLE)'}
+                </span>
+              </div>
+            </div>
+
+            {/* Transient Trigger Badges */}
+            <div className="flex items-center gap-3 pt-1">
+              <span className="caption text-xs">Transients:</span>
+              <div className={`px-2.5 py-1 rounded text-xs font-mono font-bold transition-all ${
+                state.audioTelemetry?.kick_trigger 
+                  ? 'bg-red-500 text-white shadow-lg shadow-red-500/50 scale-105' 
+                  : 'bg-dev-surface text-zinc-500 border border-dev-border'
+              }`}>
+                KICK
+              </div>
+              <div className={`px-2.5 py-1 rounded text-xs font-mono font-bold transition-all ${
+                state.audioTelemetry?.snare_trigger 
+                  ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/50 scale-105' 
+                  : 'bg-dev-surface text-zinc-500 border border-dev-border'
+              }`}>
+                SNARE
+              </div>
+              <div className={`px-2.5 py-1 rounded text-xs font-mono font-bold transition-all ${
+                state.audioTelemetry?.hihat_trigger 
+                  ? 'bg-cyan-400 text-black shadow-lg shadow-cyan-400/50 scale-105' 
+                  : 'bg-dev-surface text-zinc-500 border border-dev-border'
+              }`}>
+                HI-HAT
+              </div>
+            </div>
+
+            {/* Live Feature Meters */}
+            <div className="grid grid-cols-4 gap-3 pt-2">
+              {[
+                { name: 'Bass', val: state.audioTelemetry?.bass ?? 0 },
+                { name: 'Kick', val: state.audioTelemetry?.kick ?? 0 },
+                { name: 'Snare', val: state.audioTelemetry?.snare ?? 0 },
+                { name: 'Hi-Hat', val: state.audioTelemetry?.hihat ?? 0 },
+                { name: 'Vocal', val: state.audioTelemetry?.vocal ?? 0 },
+                { name: 'Melody', val: state.audioTelemetry?.melody ?? 0 },
+                { name: 'Beat', val: state.audioTelemetry?.beat ?? 0 },
+                { name: 'Overall', val: state.audioTelemetry?.overall ?? 0 }
+              ].map(feat => (
+                <div key={feat.name} className="bg-dev-surface p-2.5 rounded border border-dev-border">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="caption">{feat.name}</span>
+                    <span className="font-mono text-dev-text font-bold">{(feat.val * 100).toFixed(0)}%</span>
+                  </div>
+                  <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-dev-primary h-full transition-all duration-75"
+                      style={{ width: `${Math.min(100, Math.max(0, feat.val * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div>
             <h3 className="font-bold mb-2">Engine State Dump</h3>
             <pre className="bg-[#050505] p-4 rounded-lg border border-dev-border overflow-x-auto text-xs text-dev-primary-light font-mono leading-relaxed">

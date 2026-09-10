@@ -1,5 +1,5 @@
 import type { ILightingService } from './LightingService';
-import type { LightingMode, RGBColor, LightingState } from '../types/lighting';
+import type { LightingMode, RGBColor, LightingState, MusicResponseMode } from '../types/lighting';
 
 export class RealLightingService implements ILightingService {
   private ws: WebSocket | null = null;
@@ -134,6 +134,7 @@ export class RealLightingService implements ILightingService {
         transport: p.device.transport === 'serial' ? 'usb' : 'none',
         analyzers: p.analyzers,
         musicSettings: p.music_settings,
+        musicResponseMode: (p.response_mode || p.music_settings?.response_mode || 'flash') as any,
         musicMappings,
         ledCount: p.led_count ?? 300,
         virtualFrame: p.virtual_frame
@@ -252,6 +253,10 @@ export class RealLightingService implements ILightingService {
 
   async applyMusicPreset(presetName: string): Promise<void> {
     this.sendCommand('apply_music_preset', { preset: presetName });
+  }
+
+  async setMusicResponseMode(mode: MusicResponseMode): Promise<void> {
+    this.sendCommand('set_music_response_mode', { response_mode: mode });
   }
 
   async restartAll(): Promise<boolean> {

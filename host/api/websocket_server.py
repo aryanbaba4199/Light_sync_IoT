@@ -57,7 +57,9 @@ class DevLightsAPI:
                 "analyzers": self.analyzer_manager.get_status(),
                 "music_settings": self.app_state.settings.get("music", {}),
                 "music_mappings": self.app_state.get_music_mappings(),
-                "led_count": getattr(self.app_state, "led_count", 300)
+                "response_mode": self.app_state.get_music_response_mode(),
+                "led_count": getattr(self.app_state, "led_count", 300),
+                "audio_telemetry": getattr(self.engine, "latest_music_analysis", None).to_dict() if getattr(self.engine, "latest_music_analysis", None) else {}
             }
         }
         
@@ -160,6 +162,19 @@ class DevLightsAPI:
                     await self.broadcast_state()
                 else:
                     await self._send_error(websocket, "INVALID_PRESET", f"Unknown preset '{preset}'")
+
+            elif msg_type == "set_music_response_mode":
+                mode = payload.get("response_mode") or payload.get("responseMode") or payload.get("mode")
+                if mode:
+                    mode = str(mode).lower()
+                    if mode in ["fade", "flash"]:
+                        self.app_state.set_music_response_mode(mode)
+                        logger.info(f"Music response mode set to {mode}")
+                        await self.broadcast_state()
+                    else:
+                        await self._send_error(websocket, "INVALID_RESPONSE_MODE", f"Invalid response mode '{mode}'. Must be 'fade' or 'flash'")
+                else:
+                    await self._send_error(websocket, "MISSING_PARAM", "Missing response_mode in payload")
 
             elif msg_type == "set_brightness":
                 # Expects 0.0 to 1.0
@@ -280,7 +295,9 @@ class DevLightsAPI:
                         "analyzers": self.analyzer_manager.get_status(),
                         "music_settings": self.app_state.settings.get("music", {}),
                         "music_mappings": self.app_state.get_music_mappings(),
-                        "led_count": getattr(self.app_state, "led_count", 300)
+                        "response_mode": self.app_state.get_music_response_mode(),
+                        "led_count": getattr(self.app_state, "led_count", 300),
+                        "audio_telemetry": getattr(self.engine, "latest_music_analysis", None).to_dict() if getattr(self.engine, "latest_music_analysis", None) else {}
                     }
                 }
                 websockets.broadcast(self.clients, json.dumps(state_msg))

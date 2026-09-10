@@ -30,6 +30,8 @@ export type MusicInstrument =
 
 export type MusicResponseEffect = 'static' | 'pulse' | 'flash' | 'smooth';
 
+export type MusicResponseMode = 'fade' | 'flash';
+
 export type MusicDistribution = 'zone' | 'random';
 
 export interface MusicMapping {
@@ -51,6 +53,7 @@ export interface LightingState {
   power_on: boolean;
   color: RGBColor;
   musicSettings?: any;
+  musicResponseMode?: MusicResponseMode;
   musicMappings?: MusicMapping[];
   ledCount?: number;
   virtualFrame?: RGBColor[];
@@ -61,6 +64,22 @@ export interface LightingState {
   analyzers?: {
     screen_analyzer?: string;
     music_analyzer?: string;
+  };
+  audioTelemetry?: {
+    bass?: number;
+    kick?: number;
+    snare?: number;
+    vocal?: number;
+    hihat?: number;
+    brass?: number;
+    melody?: number;
+    beat?: number;
+    overall?: number;
+    kick_trigger?: boolean;
+    snare_trigger?: boolean;
+    hihat_trigger?: boolean;
+    music_gate_open?: boolean;
+    bass_transient?: number;
   };
 }
 
