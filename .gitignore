@@ -33,3 +33,6 @@ host/config.json.tmp
 # PlatformIO
 .pio/
 .vscode/
+
+# Ignore massive PlatformIO virtual environment
+pio_env/
