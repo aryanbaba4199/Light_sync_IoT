@@ -2,3 +2,5 @@ websockets>=11.0.0
 mss>=10.2.0
 numpy>=2.4.6
 pyobjc-framework-Quartz>=12.2.2; sys_platform == 'darwin'
+sounddevice>=0.4.6
+scipy>=1.11.0

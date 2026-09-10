@@ -98,8 +98,12 @@ class ScreenAnalyzer:
                 # Extract the dominant/ambient color
                 r, g, b = ColorExtractor.extract_ambient_color(small_img)
                 
+                # Calculate brightness intensity based on screen lightness (average of RGB)
+                intensity = min(1.0, max(r, max(g, b)) / 255.0)
+                
                 # Send to engine
                 self.lighting_engine.set_ambient_color(r, g, b)
+                self.lighting_engine.set_ambient_brightness(intensity)
                 
                 # Diagnostics
                 capture_ms = (time.time() - start_time) * 1000.0

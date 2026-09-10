@@ -49,12 +49,15 @@ class DevLightsAPI:
                     "g": self.engine.priority_manager.base_state.g,
                     "b": self.engine.priority_manager.base_state.b
                 },
-                "brightness": self.engine.user_intensity, # Target brightness
+                "brightness": self.engine.user_brightness, # Target brightness
                 "device": {
                     "connected": connected,
                     "transport": active_transport
                 },
-                "analyzers": self.analyzer_manager.get_status()
+                "analyzers": self.analyzer_manager.get_status(),
+                "music_settings": self.app_state.settings.get("music", {}),
+                "music_mappings": self.app_state.get_music_mappings(),
+                "led_count": getattr(self.app_state, "led_count", 300)
             }
         }
         
@@ -106,10 +109,62 @@ class DevLightsAPI:
                 logger.info(f"Color set to {r}, {g}, {b}")
                 await self.broadcast_state()
 
+            elif msg_type == "set_music_colors":
+                bass = payload.get("bass_color")
+                mid = payload.get("mid_color")
+                treb = payload.get("treb_color")
+                self.app_state.update_music_colors(bass, mid, treb)
+                logger.info("Music colors updated")
+                await self.broadcast_state()
+
+            elif msg_type == "get_music_mappings":
+                resp = {
+                    "version": 1,
+                    "type": "music_mappings",
+                    "payload": {
+                        "mappings": self.app_state.get_music_mappings(),
+                        "led_count": getattr(self.app_state, "led_count", 300)
+                    }
+                }
+                await websocket.send(json.dumps(resp))
+
+            elif msg_type == "set_music_mappings":
+                mappings = payload.get("mappings", [])
+                ok, err = self.app_state.set_music_mappings(mappings)
+                if not ok:
+                    await self._send_error(websocket, "VALIDATION_ERROR", err or "Invalid mappings")
+                else:
+                    logger.info("Music mappings updated successfully")
+                    await self.broadcast_state()
+
+            elif msg_type == "set_music_mapping":
+                mapping = payload.get("mapping", {})
+                ok, err = self.app_state.set_music_mapping(mapping)
+                if not ok:
+                    await self._send_error(websocket, "VALIDATION_ERROR", err or "Invalid mapping")
+                else:
+                    logger.info("Music mapping updated")
+                    await self.broadcast_state()
+
+            elif msg_type == "delete_music_mapping":
+                mapping_id = payload.get("id")
+                if mapping_id:
+                    self.app_state.delete_music_mapping(mapping_id)
+                    logger.info(f"Music mapping {mapping_id} deleted")
+                    await self.broadcast_state()
+
+            elif msg_type == "apply_music_preset":
+                preset = payload.get("preset", "")
+                if self.app_state.apply_music_preset(preset):
+                    logger.info(f"Music preset '{preset}' applied")
+                    await self.broadcast_state()
+                else:
+                    await self._send_error(websocket, "INVALID_PRESET", f"Unknown preset '{preset}'")
+
             elif msg_type == "set_brightness":
                 # Expects 0.0 to 1.0
                 val = payload.get("value", 1.0)
-                self.engine.set_ambient_brightness(val)
+                self.engine.set_user_brightness(val)
                 logger.info(f"Brightness set to {val}")
                 await self.broadcast_state()
 
@@ -120,7 +175,32 @@ class DevLightsAPI:
                 duration = payload.get("duration", 1.0)
                 priority = payload.get("priority", EventPriority.LOW.value)
                 self.engine.trigger_event(r, g, b, duration, EventPriority(priority))
-                
+
+            elif msg_type == "restart_all":
+                logger.info("Restart All requested by user / UI")
+                ok = False
+                if hasattr(self.engine.transport, 'hard_reset_hardware'):
+                    ok = self.engine.transport.hard_reset_hardware()
+                elif hasattr(self.engine.transport, 'serial_transport'):
+                    ok = self.engine.transport.serial_transport.hard_reset_hardware()
+
+                if hasattr(self.engine, 'reset_state'):
+                    self.engine.reset_state()
+
+                if self.analyzer_manager:
+                    self.analyzer_manager.check_state()
+
+                logger.info(f"Restart All finished (hardware reset: {ok})")
+                await websocket.send(json.dumps({
+                    "version": 1,
+                    "type": "restart_complete",
+                    "payload": {
+                        "status": "success" if ok else "warning",
+                        "message": "Hardware and engine successfully restarted"
+                    }
+                }))
+                await self.broadcast_state()
+
             else:
                 await self._send_error(websocket, "INVALID_MESSAGE", f"Unknown command type: {msg_type}")
 
@@ -191,13 +271,16 @@ class DevLightsAPI:
                             "g": state.g,
                             "b": state.b
                         },
-                        "brightness": self.engine.user_intensity, # The slider target
+                        "brightness": self.engine.user_brightness, # The slider target
                         "render_brightness": state.brightness / 255.0, # The smoothed output
                         "device": {
                             "connected": connected,
                             "transport": active_transport
                         },
-                        "analyzers": self.analyzer_manager.get_status()
+                        "analyzers": self.analyzer_manager.get_status(),
+                        "music_settings": self.app_state.settings.get("music", {}),
+                        "music_mappings": self.app_state.get_music_mappings(),
+                        "led_count": getattr(self.app_state, "led_count", 300)
                     }
                 }
                 websockets.broadcast(self.clients, json.dumps(state_msg))

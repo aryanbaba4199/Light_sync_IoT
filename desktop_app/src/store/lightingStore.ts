@@ -1,6 +1,36 @@
 import { create } from 'zustand';
-import type { LightingMode, RGBColor, TransportType, OutputMode } from '../types/lighting';
+import type { LightingMode, RGBColor, TransportType, OutputMode, MusicMapping, MusicInstrument } from '../types/lighting';
+import { DEFAULT_LED_COUNT } from '../types/lighting';
 import { lightingService } from '../services';
+
+export const INSTRUMENT_COLORS: Record<MusicInstrument, RGBColor> = {
+  bass: { r: 255, g: 0, b: 0 },
+  kick: { r: 255, g: 100, b: 0 },
+  snare: { r: 255, g: 210, b: 0 },
+  vocal: { r: 180, g: 0, b: 255 },
+  hihat: { r: 0, g: 200, b: 255 },
+  brass: { r: 255, g: 150, b: 30 },
+  melody: { r: 0, g: 255, b: 100 },
+  beat: { r: 255, g: 255, b: 255 },
+  overall: { r: 255, g: 0, b: 150 }
+};
+
+export const checkOverlaps = (mappings: MusicMapping[]): string[] => {
+  const warnings: string[] = [];
+  const enabled = mappings.filter(m => m.enabled);
+  for (let i = 0; i < enabled.length; i++) {
+    for (let j = i + 1; j < enabled.length; j++) {
+      const m1 = enabled[i];
+      const m2 = enabled[j];
+      if (!(m1.endLed < m2.startLed || m1.startLed > m2.endLed)) {
+        warnings.push(
+          `${m1.instrument.toUpperCase()} (LED ${m1.startLed}–${m1.endLed}) overlaps with ${m2.instrument.toUpperCase()} (LED ${m2.startLed}–${m2.endLed})`
+        );
+      }
+    }
+  }
+  return warnings;
+};
 
 interface LightingStore {
   mode: LightingMode;
@@ -11,11 +41,15 @@ interface LightingStore {
   renderBrightness: number;
   connected: boolean;
   transport: TransportType;
-  engineConnected: boolean; // Is the python websocket connected?
+  engineConnected: boolean;
   musicSettings: any;
+  musicMappings: MusicMapping[];
+  ledCount: number;
+  validationWarnings: string[];
   setMusicColors: (bass?: RGBColor, mid?: RGBColor, treb?: RGBColor) => void;
   analyzers: {
     screen_analyzer?: string;
+    music_analyzer?: string;
   };
   
   // Actions
@@ -24,10 +58,16 @@ interface LightingStore {
   setPower: (isOn: boolean) => void;
   setColor: (color: RGBColor) => void;
   setBrightness: (brightness: number) => void;
+  addMusicMapping: (instrument?: MusicInstrument) => void;
+  updateMusicMapping: (id: string, updates: Partial<MusicMapping>) => void;
+  deleteMusicMapping: (id: string) => void;
+  applyMusicPreset: (presetName: 'default_3_band' | 'party' | 'full_band') => void;
+  reshuffleMappingSeed: (id: string) => void;
+  restartAll: () => Promise<boolean>;
   initialize: () => void;
 }
 
-export const useLightingStore = create<LightingStore>((set) => ({
+export const useLightingStore = create<LightingStore>((set, get) => ({
   mode: 'custom',
   outputMode: 'auto',
   power_on: true,
@@ -38,11 +78,18 @@ export const useLightingStore = create<LightingStore>((set) => ({
   transport: 'none',
   engineConnected: false,
   musicSettings: { bass_color: {r:255,g:0,b:0}, mid_color: {r:0,g:255,b:0}, treb_color: {r:0,g:0,b:255} },
+  musicMappings: [
+    { id: '1', instrument: 'bass', color: { r: 255, g: 0, b: 0 }, startLed: 1, endLed: 100, sensitivity: 1.0, response: 'static', distribution: 'zone', enabled: true, seed: 101 },
+    { id: '2', instrument: 'vocal', color: { r: 0, g: 255, b: 0 }, startLed: 101, endLed: 200, sensitivity: 1.0, response: 'static', distribution: 'zone', enabled: true, seed: 102 },
+    { id: '3', instrument: 'hihat', color: { r: 0, g: 0, b: 255 }, startLed: 201, endLed: 300, sensitivity: 1.0, response: 'static', distribution: 'zone', enabled: true, seed: 103 },
+  ],
+  ledCount: DEFAULT_LED_COUNT,
+  validationWarnings: [],
   analyzers: {},
 
   setMode: (mode) => {
     lightingService.setMode(mode);
-    set({ mode }); // optimistic update
+    set({ mode });
   },
   
   setOutputMode: (mode) => {
@@ -58,14 +105,88 @@ export const useLightingStore = create<LightingStore>((set) => ({
   setMusicColors: (bass, mid, treb) => {
     lightingService.setMusicColors(bass, mid, treb);
   },
+
   setColor: (color) => {
     lightingService.setColor(color);
-    set({ color }); // optimistic update
+    set({ color });
   },
   
   setBrightness: (brightness) => {
     lightingService.setBrightness(brightness);
-    set({ brightness }); // optimistic update
+    set({ brightness });
+  },
+
+  addMusicMapping: (instrument = 'bass') => {
+    const mappings = [...get().musicMappings];
+    const defaultColor = INSTRUMENT_COLORS[instrument] || { r: 255, g: 0, b: 0 };
+    
+    // Find next available LED range
+    let startLed = 1;
+    if (mappings.length > 0) {
+      const maxEnd = Math.max(...mappings.map(m => m.endLed));
+      if (maxEnd < get().ledCount) {
+        startLed = maxEnd + 1;
+      }
+    }
+    const endLed = Math.min(startLed + 39, get().ledCount);
+
+    const newMapping: MusicMapping = {
+      id: Math.random().toString(36).substring(2, 9),
+      instrument,
+      color: defaultColor,
+      startLed,
+      endLed,
+      sensitivity: 1.0,
+      response: 'static',
+      distribution: 'zone',
+      enabled: true,
+      seed: Math.floor(Math.random() * 10000)
+    };
+
+    const updated = [...mappings, newMapping];
+    const warnings = checkOverlaps(updated);
+    set({ musicMappings: updated, validationWarnings: warnings });
+    lightingService.setMusicMapping(newMapping);
+  },
+
+  updateMusicMapping: (id, updates) => {
+    const mappings = get().musicMappings.map(m => {
+      if (m.id === id) {
+        const updated = { ...m, ...updates };
+        // Clamp LED bounds to valid range [1, ledCount]
+        if (updated.startLed !== undefined) updated.startLed = Math.max(1, Math.min(get().ledCount, updated.startLed));
+        if (updated.endLed !== undefined) updated.endLed = Math.max(1, Math.min(get().ledCount, updated.endLed));
+        return updated;
+      }
+      return m;
+    });
+
+    const warnings = checkOverlaps(mappings);
+    set({ musicMappings: mappings, validationWarnings: warnings });
+
+    const changed = mappings.find(m => m.id === id);
+    if (changed) {
+      lightingService.setMusicMapping(changed);
+    }
+  },
+
+  deleteMusicMapping: (id) => {
+    const mappings = get().musicMappings.filter(m => m.id !== id);
+    const warnings = checkOverlaps(mappings);
+    set({ musicMappings: mappings, validationWarnings: warnings });
+    lightingService.deleteMusicMapping(id);
+  },
+
+  applyMusicPreset: (presetName) => {
+    lightingService.applyMusicPreset(presetName);
+  },
+
+  reshuffleMappingSeed: (id) => {
+    get().updateMusicMapping(id, { seed: Math.floor(Math.random() * 10000) });
+  },
+
+  restartAll: async () => {
+    return await lightingService.restartAll();
   },
 
   initialize: () => {
@@ -76,6 +197,11 @@ export const useLightingStore = create<LightingStore>((set) => ({
 
     // Listen for full state broadcasts from Python Engine
     lightingService.onStateChange((state) => {
+      const mappings = state.musicMappings && state.musicMappings.length > 0 
+        ? state.musicMappings 
+        : get().musicMappings;
+      const warnings = checkOverlaps(mappings);
+
       set({
         mode: state.mode,
         outputMode: state.outputMode,
@@ -86,7 +212,10 @@ export const useLightingStore = create<LightingStore>((set) => ({
         connected: state.connected,
         transport: state.transport,
         analyzers: state.analyzers || {},
-        musicSettings: (state as any).musicSettings || { bass_color: {r:255,g:0,b:0}, mid_color: {r:0,g:255,b:0}, treb_color: {r:0,g:0,b:255} },
+        musicSettings: (state as any).musicSettings || get().musicSettings,
+        musicMappings: mappings,
+        ledCount: state.ledCount || DEFAULT_LED_COUNT,
+        validationWarnings: warnings
       });
     });
 

@@ -1,8 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLightingStore } from '../store/lightingStore';
+import { DEFAULT_LED_COUNT } from '../types/lighting';
 
-export const VirtualStrip = ({ ledCount = 60 }: { ledCount?: number }) => {
+export const VirtualStrip = ({ ledCount: propLedCount }: { ledCount?: number }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const storeLedCount = useLightingStore(s => s.ledCount);
+  const stripLedCount = propLedCount || storeLedCount || DEFAULT_LED_COUNT;
 
   useEffect(() => {
     // Subscribe directly to the store to prevent React re-renders at 20Hz
@@ -18,17 +21,20 @@ export const VirtualStrip = ({ ledCount = 60 }: { ledCount?: number }) => {
     return () => unsubscribe();
   }, []);
 
+  // Display a representative slice of dots for high density strips
+  const displayDots = Math.min(stripLedCount, 60);
+
   return (
     <div className="w-full mb-8">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-xs font-semibold tracking-widest text-dev-text-secondary uppercase">Virtual Output</h3>
-        <div className="text-[10px] text-dev-text-muted">60 LEDs</div>
+        <div className="text-[10px] text-dev-text-muted">{stripLedCount} LEDs</div>
       </div>
       
       <div 
         ref={containerRef}
         className="flex w-full items-center justify-between h-8 bg-black/40 rounded-lg border border-dev-border-light px-2 py-1 shadow-inner relative overflow-hidden"
-        style={{ '--v-rgb': '0,0,0', '--v-brightness': '0' } as React.CSSProperties}
+        style={{ '--v-rgb': '0,0,0', '--v-brightness': '0' } as any}
       >
         {/* Glow backdrop layer for a premium look */}
         <div 
@@ -38,9 +44,8 @@ export const VirtualStrip = ({ ledCount = 60 }: { ledCount?: number }) => {
           }}
         />
 
-        {/* 60 individual LEDs */}
-        {Array.from({ length: ledCount }).map((_, i) => {
-          // Keep a very slight variation so it looks like LEDs, but keep it very bright (0.9 - 1.0)
+        {/* LED representation */}
+        {Array.from({ length: displayDots }).map((_, i) => {
           const staticOpacity = 0.9 + (Math.sin(i * 0.5) * 0.1); 
           return (
             <div 

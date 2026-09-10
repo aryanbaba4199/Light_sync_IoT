@@ -15,6 +15,11 @@ export interface ILightingService {
   setBrightness(value: number): Promise<void>; // 0 to 100
   setColor(color: RGBColor): Promise<void>;
   setMusicColors(bass?: RGBColor, mid?: RGBColor, treb?: RGBColor): Promise<void>;
+  setMusicMappings(mappings: any[]): Promise<void>;
+  setMusicMapping(mapping: any): Promise<void>;
+  deleteMusicMapping(id: string): Promise<void>;
+  applyMusicPreset(presetName: string): Promise<void>;
+  restartAll(): Promise<boolean>;
   
   // Callbacks
   onStateChange(callback: (state: LightingState) => void): void;

@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { DiagnosticsModal } from '../components/DiagnosticsModal';
-import { Terminal, Shield, RefreshCw } from 'lucide-react';
+import { Terminal, Shield, RefreshCw, Power } from 'lucide-react';
+import { useLightingStore } from '../store/lightingStore';
 
 export const SettingsScreen = () => {
   const [showDiag, setShowDiag] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
+  const { restartAll } = useLightingStore();
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -52,6 +55,23 @@ export const SettingsScreen = () => {
                 <div>
                   <div className="font-medium text-dev-text">System Diagnostics</div>
                   <div className="caption">View engine state and hardware logs</div>
+                </div>
+              </div>
+            </button>
+            <button 
+              onClick={async () => {
+                setIsRestarting(true);
+                await restartAll();
+                setTimeout(() => setIsRestarting(false), 1500);
+              }}
+              disabled={isRestarting}
+              className="w-full flex items-center justify-between p-4 hover:bg-red-950/30 rounded-lg text-left transition-colors cursor-pointer border-none bg-transparent"
+            >
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-red-950/50 text-red-400 rounded-lg"><Power size={20} /></div>
+                <div>
+                  <div className="font-medium text-red-400">{isRestarting ? 'Restarting Hardware & Engine...' : 'Restart Lights & Hardware'}</div>
+                  <div className="caption">Reboots ESP32 micro-controller, clears LED strip, and resets lighting engine</div>
                 </div>
               </div>
             </button>

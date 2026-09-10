@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useLightingStore } from '../store/lightingStore';
 import { Zap, Monitor, CheckCircle } from 'lucide-react';
 

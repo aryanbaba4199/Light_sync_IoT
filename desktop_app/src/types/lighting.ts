@@ -15,18 +15,52 @@ export type TransportType = 'usb' | 'wifi' | 'none';
 
 export type OutputMode = 'auto' | 'virtual' | 'esp32';
 
+export const DEFAULT_LED_COUNT = 300;
+
+export type MusicInstrument =
+  | 'bass'
+  | 'kick'
+  | 'snare'
+  | 'vocal'
+  | 'hihat'
+  | 'brass'
+  | 'melody'
+  | 'beat'
+  | 'overall';
+
+export type MusicResponseEffect = 'static' | 'pulse' | 'flash' | 'smooth';
+
+export type MusicDistribution = 'zone' | 'random';
+
+export interface MusicMapping {
+  id: string;
+  instrument: MusicInstrument;
+  color: RGBColor;
+  startLed: number; // 1-based (1 to DEFAULT_LED_COUNT)
+  endLed: number;   // 1-based (1 to DEFAULT_LED_COUNT)
+  sensitivity: number; // 0.0 to 2.0 (e.g. 1.0 = 100%)
+  response: MusicResponseEffect;
+  distribution: MusicDistribution;
+  enabled: boolean;
+  seed: number;
+}
+
 export interface LightingState {
   mode: LightingMode;
   outputMode: OutputMode;
   power_on: boolean;
   color: RGBColor;
   musicSettings?: any;
+  musicMappings?: MusicMapping[];
+  ledCount?: number;
+  virtualFrame?: RGBColor[];
   brightness: number; // The user-facing target
   renderBrightness?: number; // The smoothed output for visuals
   connected: boolean;
   transport: TransportType;
   analyzers?: {
     screen_analyzer?: string;
+    music_analyzer?: string;
   };
 }
 

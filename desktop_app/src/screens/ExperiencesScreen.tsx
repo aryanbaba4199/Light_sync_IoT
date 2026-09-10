@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useLightingStore } from '../store/lightingStore';
-import type { RGBColor } from '../types/lighting';
+import { LedStripPreview300 } from '../components/LedStripPreview300';
+import { MusicMappingEditor } from '../components/MusicMappingEditor';
 
 export const ExperiencesScreen = () => {
-  const { color, brightness, mode, setMode, setColor, setBrightness, musicSettings, setMusicColors } = useLightingStore();
-  const [activeBand, setActiveBand] = useState<string>('bass');
+  const { color, brightness, mode, setMode, setColor, setBrightness, restartAll } = useLightingStore();
+  const [isRestarting, setIsRestarting] = useState(false);
+  
   const rgbToHex = (r: number, g: number, b: number) => '#' + [r, g, b].map(x => {
     const hex = x.toString(16);
     return hex.length === 1 ? '0' + hex : hex;
@@ -23,25 +25,26 @@ export const ExperiencesScreen = () => {
     setColor({ r, g, b });
   };
 
-  const handleMusicColorChange = (r: number, g: number, b: number) => {
-    if (activeBand === 'bass') setMusicColors({r,g,b}, undefined, undefined);
-    if (activeBand === 'mid') setMusicColors(undefined, {r,g,b}, undefined);
-    if (activeBand === 'treb') setMusicColors(undefined, undefined, {r,g,b});
-  };
-
-  const PresetColor = ({ r, g, b, label, onClick }: any) => (
-    <button 
-      onClick={onClick || (() => handleColorChange(r, g, b))}
-      className="flex flex-col items-center gap-2 border-none bg-transparent cursor-pointer"
-    >
-      <div className="w-12 h-12 rounded-full border-2 border-dev-border-light transition-transform hover:scale-110" style={{ backgroundColor: `rgb(${r},${g},${b})`}}></div>
-      <span className="caption">{label}</span>
-    </button>
-  );
-
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold tracking-wide mb-8">EXPERIENCES</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-2xl font-bold tracking-wide">EXPERIENCES</h1>
+        <button
+          onClick={async () => {
+            setIsRestarting(true);
+            await restartAll();
+            setTimeout(() => setIsRestarting(false), 1500);
+          }}
+          disabled={isRestarting}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/60 text-xs font-semibold cursor-pointer transition-all disabled:opacity-50"
+          title="Physically reboots ESP32, clears LED strip, and resets the lighting engine"
+        >
+          <svg className={`w-3.5 h-3.5 ${isRestarting ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {isRestarting ? 'Restarting...' : 'Restart Lights & Hardware'}
+        </button>
+      </div>
 
       <div className="flex gap-4 mb-8">
         {['movie', 'music', 'game', 'developer', 'custom'].map((m) => (
@@ -88,48 +91,9 @@ export const ExperiencesScreen = () => {
         )}
         
         {mode === 'music' && (
-          <div>
-            <h2 className="text-xl font-bold mb-2 uppercase">MUSIC FREQUENCY MAPPING</h2>
-            <p className="caption mb-8">Assign colors to different sound frequencies.</p>
-
-            <div className="flex gap-4 mb-8">
-               <button 
-                  onClick={() => setActiveBand('bass')}
-                  className={`px-6 py-2 rounded-lg font-bold border-none cursor-pointer ${activeBand === 'bass' ? 'bg-dev-primary text-white' : 'bg-dev-surface text-dev-text-secondary'}`}
-                  style={{ borderBottom: activeBand === 'bass' ? `4px solid rgb(${musicSettings?.bass_color?.r||255}, ${musicSettings?.bass_color?.g||0}, ${musicSettings?.bass_color?.b||0})` : 'none'}}
-                >
-                 BASS (LOW)
-               </button>
-               <button 
-                  onClick={() => setActiveBand('mid')}
-                  className={`px-6 py-2 rounded-lg font-bold border-none cursor-pointer ${activeBand === 'mid' ? 'bg-dev-primary text-white' : 'bg-dev-surface text-dev-text-secondary'}`}
-                  style={{ borderBottom: activeBand === 'mid' ? `4px solid rgb(${musicSettings?.mid_color?.r||0}, ${musicSettings?.mid_color?.g||255}, ${musicSettings?.mid_color?.b||0})` : 'none'}}
-                >
-                 VOCALS (MID)
-               </button>
-               <button 
-                  onClick={() => setActiveBand('treb')}
-                  className={`px-6 py-2 rounded-lg font-bold border-none cursor-pointer ${activeBand === 'treb' ? 'bg-dev-primary text-white' : 'bg-dev-surface text-dev-text-secondary'}`}
-                  style={{ borderBottom: activeBand === 'treb' ? `4px solid rgb(${musicSettings?.treb_color?.r||0}, ${musicSettings?.treb_color?.g||0}, ${musicSettings?.treb_color?.b||255})` : 'none'}}
-                >
-                 MELODY (HIGH)
-               </button>
-            </div>
-
-            <h3 className="text-sm tracking-wide text-dev-text-secondary mb-4 uppercase">Color Picker for {activeBand}</h3>
-            <div className="flex gap-6 mb-12 items-center">
-              <input 
-                type="color" 
-                value={activeBand === 'bass' ? rgbToHex(musicSettings?.bass_color?.r||255, musicSettings?.bass_color?.g||0, musicSettings?.bass_color?.b||0) : activeBand === 'mid' ? rgbToHex(musicSettings?.mid_color?.r||0, musicSettings?.mid_color?.g||255, musicSettings?.mid_color?.b||0) : rgbToHex(musicSettings?.treb_color?.r||0, musicSettings?.treb_color?.g||0, musicSettings?.treb_color?.b||255)}
-                onChange={(e) => {
-                  const {r,g,b} = hexToRgb(e.target.value);
-                  handleMusicColorChange(r, g, b);
-                }}
-                style={{ width: '80px', height: '80px', padding: 0, border: 'none', borderRadius: '12px', cursor: 'pointer' }}
-              />
-              <p className="caption">Click the square to pick an exact color for this frequency!</p>
-            </div>
-
+          <div className="space-y-8">
+            <LedStripPreview300 />
+            <MusicMappingEditor />
           </div>
         )}
 

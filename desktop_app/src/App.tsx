@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Home, Palette, Zap, Settings as SettingsIcon } from 'lucide-react';
 import { useLightingStore } from './store/lightingStore';
 

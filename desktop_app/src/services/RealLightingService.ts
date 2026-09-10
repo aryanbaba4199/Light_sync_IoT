@@ -109,6 +109,20 @@ export class RealLightingService implements ILightingService {
 
     if (data.type === 'lighting_state') {
       const p = data.payload;
+      const rawMappings = p.music_mappings || [];
+      const musicMappings = rawMappings.map((m: any) => ({
+        id: m.id,
+        instrument: m.instrument,
+        color: m.color,
+        startLed: m.start_led,
+        endLed: m.end_led,
+        sensitivity: m.sensitivity,
+        response: m.response,
+        distribution: m.distribution,
+        enabled: m.enabled,
+        seed: m.seed ?? 42
+      }));
+
       const mappedState: LightingState = {
         mode: p.mode,
         outputMode: p.output_mode || 'auto',
@@ -119,7 +133,10 @@ export class RealLightingService implements ILightingService {
         connected: p.device.connected,
         transport: p.device.transport === 'serial' ? 'usb' : 'none',
         analyzers: p.analyzers,
-        musicSettings: data.payload.music_settings
+        musicSettings: p.music_settings,
+        musicMappings,
+        ledCount: p.led_count ?? 300,
+        virtualFrame: p.virtual_frame
       };
       
       this.stateCallbacks.forEach(cb => cb(mappedState));
@@ -195,6 +212,51 @@ export class RealLightingService implements ILightingService {
 
   async setMusicColors(bass?: RGBColor, mid?: RGBColor, treb?: RGBColor): Promise<void> {
     this.sendCommand("set_music_colors", { bass_color: bass, mid_color: mid, treb_color: treb });
+  }
+
+  async setMusicMappings(mappings: any[]): Promise<void> {
+    const serialized = mappings.map((m: any) => ({
+      id: m.id,
+      instrument: m.instrument,
+      color: m.color,
+      start_led: m.startLed ?? m.start_led,
+      end_led: m.endLed ?? m.end_led,
+      sensitivity: m.sensitivity,
+      response: m.response,
+      distribution: m.distribution,
+      enabled: m.enabled,
+      seed: m.seed ?? 42
+    }));
+    this.sendCommand('set_music_mappings', { mappings: serialized });
+  }
+
+  async setMusicMapping(mapping: any): Promise<void> {
+    const serialized = {
+      id: mapping.id,
+      instrument: mapping.instrument,
+      color: mapping.color,
+      start_led: mapping.startLed ?? mapping.start_led,
+      end_led: mapping.endLed ?? mapping.end_led,
+      sensitivity: mapping.sensitivity,
+      response: mapping.response,
+      distribution: mapping.distribution,
+      enabled: mapping.enabled,
+      seed: mapping.seed ?? 42
+    };
+    this.sendCommand('set_music_mapping', { mapping: serialized });
+  }
+
+  async deleteMusicMapping(id: string): Promise<void> {
+    this.sendCommand('delete_music_mapping', { id });
+  }
+
+  async applyMusicPreset(presetName: string): Promise<void> {
+    this.sendCommand('apply_music_preset', { preset: presetName });
+  }
+
+  async restartAll(): Promise<boolean> {
+    this.sendCommand('restart_all', {});
+    return true;
   }
 
   async setColor(color: RGBColor): Promise<void> {

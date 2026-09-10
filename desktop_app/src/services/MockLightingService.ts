@@ -58,6 +58,48 @@ export class MockLightingService implements ILightingService {
     this.notifyState();
   }
 
+  async setMusicColors(bass?: RGBColor, mid?: RGBColor, treb?: RGBColor): Promise<void> {
+    this.state.musicSettings = {
+      bass_color: bass || this.state.musicSettings?.bass_color,
+      mid_color: mid || this.state.musicSettings?.mid_color,
+      treb_color: treb || this.state.musicSettings?.treb_color
+    };
+    this.notifyState();
+  }
+
+  async setMusicMappings(mappings: any[]): Promise<void> {
+    this.state.musicMappings = mappings;
+    this.notifyState();
+  }
+
+  async setMusicMapping(mapping: any): Promise<void> {
+    const list = this.state.musicMappings || [];
+    const idx = list.findIndex(m => m.id === mapping.id);
+    if (idx >= 0) {
+      list[idx] = mapping;
+    } else {
+      list.push(mapping);
+    }
+    this.state.musicMappings = [...list];
+    this.notifyState();
+  }
+
+  async deleteMusicMapping(id: string): Promise<void> {
+    this.state.musicMappings = (this.state.musicMappings || []).filter(m => m.id !== id);
+    this.notifyState();
+  }
+
+  async applyMusicPreset(presetName: string): Promise<void> {
+    console.log('[MockService] Applied preset', presetName);
+    this.notifyState();
+  }
+
+  async restartAll(): Promise<boolean> {
+    console.log('[MockService] Restarted all');
+    this.notifyState();
+    return true;
+  }
+
   onStateChange(callback: (state: LightingState) => void): void {
     this.stateCallbacks.push(callback);
   }
