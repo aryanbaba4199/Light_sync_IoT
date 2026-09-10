@@ -1,5 +1,18 @@
 import { create } from 'zustand';
-import type { LightingMode, RGBColor, TransportType, OutputMode, MusicMapping, MusicInstrument, MusicResponseMode, MovieLayout, MovieSettings } from '../types/lighting';
+import type { 
+  LightingMode, 
+  RGBColor, 
+  TransportType, 
+  OutputMode, 
+  MusicMapping, 
+  MusicInstrument, 
+  MusicResponseMode, 
+  MovieLayout, 
+  MovieSettings,
+  CustomEffectType,
+  CustomEffectConfig,
+  CustomSettings
+} from '../types/lighting';
 import { DEFAULT_LED_COUNT } from '../types/lighting';
 import { lightingService } from '../services';
 
@@ -47,6 +60,10 @@ interface LightingStore {
   musicMappings: MusicMapping[];
   movieLayout: MovieLayout;
   movieSettings: MovieSettings;
+  customEffect: CustomEffectType;
+  customConfig: CustomEffectConfig;
+  customSettings?: CustomSettings;
+  ledFrame?: [number, number, number][];
   ledCount: number;
   validationWarnings: string[];
   setMusicColors: (bass?: RGBColor, mid?: RGBColor, treb?: RGBColor) => void;
@@ -62,6 +79,8 @@ interface LightingStore {
   setPower: (isOn: boolean) => void;
   setColor: (color: RGBColor) => void;
   setBrightness: (brightness: number) => void;
+  setCustomEffect: (effect: CustomEffectType) => void;
+  setCustomEffectConfig: (effect: CustomEffectType, config: Partial<CustomEffectConfig>) => void;
   setMusicResponseMode: (mode: MusicResponseMode) => void;
   setMovieLayout: (layout: Partial<MovieLayout>) => void;
   setMovieMusicSync: (enabled: boolean) => void;
@@ -110,6 +129,14 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
     min_music_brightness: 0.35,
     max_music_brightness: 1.00
   },
+  customEffect: 'rainfall',
+  customConfig: {
+    color: { r: 0, g: 120, b: 255 },
+    speed: 50,
+    active_led_count: 10,
+    trail_length: 10
+  },
+  ledFrame: [],
   ledCount: DEFAULT_LED_COUNT,
   validationWarnings: [],
   analyzers: {},
@@ -141,6 +168,17 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
   setBrightness: (brightness) => {
     lightingService.setBrightness(brightness);
     set({ brightness });
+  },
+
+  setCustomEffect: (effect) => {
+    lightingService.setCustomEffect(effect);
+    set({ customEffect: effect });
+  },
+
+  setCustomEffectConfig: (effect, config) => {
+    const updated = { ...get().customConfig, ...config };
+    lightingService.setCustomEffectConfig(effect, updated);
+    set({ customConfig: updated });
   },
 
   setMusicResponseMode: (mode) => {
@@ -275,6 +313,10 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
         musicMappings: mappings,
         movieLayout: state.movieLayout || get().movieLayout,
         movieSettings: state.movieSettings || get().movieSettings,
+        customEffect: state.customEffect || get().customEffect,
+        customConfig: state.customConfig || get().customConfig,
+        customSettings: state.customSettings || get().customSettings,
+        ledFrame: state.ledFrame,
         ledCount: state.ledCount || DEFAULT_LED_COUNT,
         validationWarnings: warnings,
         audioTelemetry: (state as any).audioTelemetry || get().audioTelemetry

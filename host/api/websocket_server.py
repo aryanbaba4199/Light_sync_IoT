@@ -24,6 +24,15 @@ class DevLightsAPI:
         self.clients = set()
         self._loop = None
 
+    def _get_led_frame_sample(self):
+        if hasattr(self.engine, "led_frame") and self.engine.led_frame:
+            frame = self.engine.led_frame
+            total = len(frame)
+            if total > 0:
+                step = max(1, total // 60)
+                return [[c[0], c[1], c[2]] for c in frame[::step][:60]]
+        return []
+
     async def broadcast_state(self):
         """Sends the current state to all connected clients."""
         if not self.clients:
@@ -67,6 +76,10 @@ class DevLightsAPI:
                 "response_mode": self.app_state.get_music_response_mode(),
                 "movie_settings": movie_settings,
                 "movie_layout": self.app_state.get_movie_layout().to_dict() if hasattr(self.app_state, "get_movie_layout") else {},
+                "custom_effect": self.app_state.get_custom_effect() if hasattr(self.app_state, "get_custom_effect") else "rainfall",
+                "custom_config": self.app_state.get_custom_config() if hasattr(self.app_state, "get_custom_config") else {},
+                "custom_settings": self.app_state.get_custom_settings() if hasattr(self.app_state, "get_custom_settings") else {},
+                "led_frame": self._get_led_frame_sample(),
                 "led_count": getattr(self.app_state, "led_count", 300),
                 "audio_telemetry": getattr(self.engine, "latest_music_analysis", None).to_dict() if getattr(self.engine, "latest_music_analysis", None) else {}
             }
@@ -92,8 +105,12 @@ class DevLightsAPI:
                 if mode:
                     settings = self.app_state.set_mode(mode)
                     if settings and mode == "custom":
-                        # Immediately apply the saved custom color
                         self.engine.set_ambient_color(settings.get("r", 255), settings.get("g", 255), settings.get("b", 255))
+                        if hasattr(self.engine, "custom_effect_engine"):
+                            eff = self.app_state.get_custom_effect()
+                            cfg = self.app_state.get_custom_config(eff)
+                            self.engine.custom_effect_engine.set_effect(eff, cfg)
+                            self.engine.custom_start_time = time.time()
                     logger.info(f"Mode set to {mode}")
                     self.analyzer_manager.check_state()
                     await self.broadcast_state()
@@ -117,6 +134,11 @@ class DevLightsAPI:
                 g = payload.get("g", 0)
                 b = payload.get("b", 0)
                 self.engine.set_ambient_color(r, g, b)
+                if hasattr(self.app_state, "get_custom_effect") and hasattr(self.app_state, "set_custom_config"):
+                    eff = self.app_state.get_custom_effect()
+                    self.app_state.set_custom_config(eff, {"color": {"r": r, "g": g, "b": b}})
+                    if hasattr(self.engine, "custom_effect_engine"):
+                        self.engine.custom_effect_engine.update_config(eff, {"color": {"r": r, "g": g, "b": b}})
                 logger.info(f"Color set to {r}, {g}, {b}")
                 await self.broadcast_state()
 
@@ -233,6 +255,48 @@ class DevLightsAPI:
                 logger.info(f"Movie monitor set to {idx}")
                 await self.broadcast_state()
 
+            elif msg_type == "get_custom_effect":
+                resp = {
+                    "version": 1,
+                    "type": "custom_effect",
+                    "payload": {
+                        "effect": self.app_state.get_custom_effect() if hasattr(self.app_state, "get_custom_effect") else "rainfall",
+                        "config": self.app_state.get_custom_config() if hasattr(self.app_state, "get_custom_config") else {},
+                        "settings": self.app_state.get_custom_settings() if hasattr(self.app_state, "get_custom_settings") else {}
+                    }
+                }
+                await websocket.send(json.dumps(resp))
+
+            elif msg_type == "set_custom_effect":
+                effect = payload.get("effect")
+                if effect:
+                    ok = self.app_state.set_custom_effect(effect) if hasattr(self.app_state, "set_custom_effect") else False
+                    if ok:
+                        if hasattr(self.engine, "custom_effect_engine"):
+                            cfg = self.app_state.get_custom_config(effect)
+                            self.engine.custom_effect_engine.set_effect(effect, cfg)
+                            self.engine.custom_start_time = time.time()
+                        logger.info(f"Custom effect set to {effect}")
+                        await self.broadcast_state()
+                    else:
+                        await self._send_error(websocket, "INVALID_EFFECT", f"Unknown custom effect: {effect}")
+                else:
+                    await self._send_error(websocket, "MISSING_PARAM", "Missing effect name in payload")
+
+            elif msg_type == "set_custom_config":
+                effect = payload.get("effect") or (self.app_state.get_custom_effect() if hasattr(self.app_state, "get_custom_effect") else None)
+                config = payload.get("config", {})
+                if effect and isinstance(config, dict):
+                    ok, err = self.app_state.set_custom_config(effect, config) if hasattr(self.app_state, "set_custom_config") else (False, "Method not supported")
+                    if ok:
+                        if hasattr(self.engine, "custom_effect_engine"):
+                            self.engine.custom_effect_engine.update_config(effect, config)
+                        logger.info(f"Custom config updated for {effect}")
+                        await self.broadcast_state()
+                    else:
+                        await self._send_error(websocket, "VALIDATION_ERROR", err or "Failed to update custom config")
+                else:
+                    await self._send_error(websocket, "INVALID_PARAM", "Invalid effect or config dictionary")
 
             elif msg_type == "set_brightness":
                 # Expects 0.0 to 1.0
@@ -356,6 +420,10 @@ class DevLightsAPI:
                         "response_mode": self.app_state.get_music_response_mode(),
                         "movie_settings": self.app_state.get_movie_settings() if hasattr(self.app_state, "get_movie_settings") else {},
                         "movie_layout": self.app_state.get_movie_layout().to_dict() if hasattr(self.app_state, "get_movie_layout") else {},
+                        "custom_effect": self.app_state.get_custom_effect() if hasattr(self.app_state, "get_custom_effect") else "rainfall",
+                        "custom_config": self.app_state.get_custom_config() if hasattr(self.app_state, "get_custom_config") else {},
+                        "custom_settings": self.app_state.get_custom_settings() if hasattr(self.app_state, "get_custom_settings") else {},
+                        "led_frame": self._get_led_frame_sample(),
                         "led_count": getattr(self.app_state, "led_count", 300),
                         "audio_telemetry": getattr(self.engine, "latest_music_analysis", None).to_dict() if getattr(self.engine, "latest_music_analysis", None) else {}
                     }

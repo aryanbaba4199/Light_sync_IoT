@@ -1,4 +1,4 @@
-import type { LightingMode, RGBColor, LightingState, MusicResponseMode } from '../types/lighting';
+import type { LightingMode, RGBColor, LightingState, MusicResponseMode, CustomEffectType, CustomEffectConfig } from '../types/lighting';
 
 export interface ILightingService {
   connect(): Promise<void>;
@@ -14,6 +14,8 @@ export interface ILightingService {
   setOutputMode(outputMode: string): Promise<void>;
   setBrightness(value: number): Promise<void>; // 0 to 100
   setColor(color: RGBColor): Promise<void>;
+  setCustomEffect(effect: CustomEffectType): Promise<void>;
+  setCustomEffectConfig(effect: CustomEffectType, config: CustomEffectConfig): Promise<void>;
   setMusicColors(bass?: RGBColor, mid?: RGBColor, treb?: RGBColor): Promise<void>;
   setMusicMappings(mappings: any[]): Promise<void>;
   setMusicMapping(mapping: any): Promise<void>;

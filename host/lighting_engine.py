@@ -5,6 +5,11 @@ import numpy as np
 from lighting_state import LightingState, EventPriority
 from music_models import LED_COUNT, MusicAnalysis, MusicMapping
 from music_mapping_engine import MusicMappingEngine
+try:
+    from custom_effects import CustomEffectEngine
+except ImportError:
+    from host.custom_effects import CustomEffectEngine
+
 
 class PriorityManager:
     def __init__(self):
@@ -38,6 +43,9 @@ class LightingEngine:
         
         self.led_count = getattr(app_state, "led_count", LED_COUNT)
         self.music_mapping_engine = MusicMappingEngine(led_count=self.led_count)
+        self.custom_effect_engine = CustomEffectEngine(led_count=self.led_count)
+        self.custom_start_time = time.time()
+        self.last_mode = None
         self.latest_music_analysis = MusicAnalysis()
         
         # Movie Mode Spatial Frame Buffer
@@ -76,6 +84,14 @@ class LightingEngine:
             self.priority_manager.base_state.r = r
             self.priority_manager.base_state.g = g
             self.priority_manager.base_state.b = b
+            if hasattr(self, "custom_effect_engine"):
+                c = {"r": r, "g": g, "b": b}
+                self.custom_effect_engine.update_config("static", {"color": c})
+                self.custom_effect_engine.update_config(self.custom_effect_engine.current_effect, {"color": c})
+        if self.app_state and hasattr(self.app_state, "set_custom_config"):
+            eff = self.app_state.get_custom_effect()
+            self.app_state.set_custom_config(eff, {"color": {"r": r, "g": g, "b": b}})
+            self.app_state.set_custom_config("static", {"color": {"r": r, "g": g, "b": b}})
 
     def set_ambient_brightness(self, intensity_0_to_1: float):
         """Called by analyzers to set dynamic intensity (e.g. movie brightness)"""
@@ -101,6 +117,9 @@ class LightingEngine:
             self.latest_movie_frame = None
             self.latest_movie_edges = {}
             self.smooth_music_multiplier = 1.0
+            if hasattr(self, "custom_effect_engine"):
+                self.custom_effect_engine.reset_state()
+            self.custom_start_time = time.time()
         if self.transport:
             try:
                 self.transport.send_zones([])
@@ -209,6 +228,12 @@ class LightingEngine:
                 mode_limit = settings.get("brightness_limit", 1.0)
                 power_on = self.app_state.power_on
 
+            if current_mode != self.last_mode:
+                if current_mode == "custom":
+                    self.custom_start_time = time.time()
+                    self.custom_effect_engine.reset_state()
+                self.last_mode = current_mode
+
             # ==========================================
             # RENDER PIPELINE
             # ==========================================
@@ -313,6 +338,54 @@ class LightingEngine:
                     self.transport.send_frame(self.led_frame)
 
                 # Representative color for virtual UI / status metrics
+                active_colors = [c for c in rendered_frame if c != (0, 0, 0)]
+                if active_colors:
+                    avg_r = int(sum(c[0] for c in active_colors) / len(active_colors))
+                    avg_g = int(sum(c[1] for c in active_colors) / len(active_colors))
+                    avg_b = int(sum(c[2] for c in active_colors) / len(active_colors))
+                    avg_bright = int(max(avg_r, avg_g, avg_b))
+                else:
+                    avg_r, avg_g, avg_b, avg_bright = 0, 0, 0, 0
+
+                self.render_state.r = avg_r
+                self.render_state.g = avg_g
+                self.render_state.b = avg_b
+                self.render_state.brightness = avg_bright
+
+            elif current_mode == "custom":
+                # CUSTOM MODE: 10 procedural animations on 300 LEDs
+                custom_effect = self.app_state.get_custom_effect() if (self.app_state and hasattr(self.app_state, "get_custom_effect")) else "rainfall"
+                custom_config = self.app_state.get_custom_config(custom_effect) if (self.app_state and hasattr(self.app_state, "get_custom_config")) else {}
+
+                now = time.time()
+                elapsed = now - self.custom_start_time
+                dt = 1.0 / target_fps
+
+                # Render 300-LED frame buffer
+                rendered_frame = self.custom_effect_engine.render(
+                    effect_name=custom_effect,
+                    config=custom_config,
+                    led_count=self.led_count,
+                    elapsed_time=elapsed,
+                    dt=dt,
+                    global_brightness=user_bright,
+                    mode_limit=mode_limit,
+                    power_on=power_on
+                )
+                self.led_frame = rendered_frame
+
+                # Protocol V2: Extract compact zones for hardware (<= 42 zones)
+                zones = self.custom_effect_engine.extract_zones_for_protocol(
+                    frame=rendered_frame,
+                    effect_name=custom_effect,
+                    config=custom_config
+                )
+
+                if self.transport:
+                    self.transport.send_zones(zones)
+                    self.transport.send_frame(self.led_frame)
+
+                # Compute representative color for virtual UI / render_state
                 active_colors = [c for c in rendered_frame if c != (0, 0, 0)]
                 if active_colors:
                     avg_r = int(sum(c[0] for c in active_colors) / len(active_colors))

@@ -37,8 +37,9 @@ class TestEndToEndMusic(unittest.TestCase):
         engine.smoothing_factor = 0.0
 
         try:
-            # 1. Start in Custom Mode (Protocol V1)
+            # 1. Start in Custom Mode (Protocol V1 / Static)
             self.app_state.set_mode(AppMode.CUSTOM)
+            self.app_state.set_custom_effect("static")
             engine.set_ambient_color(255, 50, 20)
             engine.set_user_brightness(1.0)
             

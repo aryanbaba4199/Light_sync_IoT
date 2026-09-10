@@ -1,5 +1,5 @@
 import type { ILightingService } from './LightingService';
-import type { LightingMode, RGBColor, LightingState, MusicResponseMode } from '../types/lighting';
+import type { LightingMode, RGBColor, LightingState, MusicResponseMode, CustomEffectType, CustomEffectConfig } from '../types/lighting';
 
 export class MockLightingService implements ILightingService {
   private state: LightingState = {
@@ -9,7 +9,9 @@ export class MockLightingService implements ILightingService {
     connected: true,
     transport: 'none',
     outputMode: 'auto',
-    power_on: true
+    power_on: true,
+    customEffect: 'rainfall',
+    customConfig: { speed: 50, active_led_count: 10, trail_length: 10 }
   };
 
   private stateCallbacks: ((state: LightingState) => void)[] = [];
@@ -132,6 +134,19 @@ export class MockLightingService implements ILightingService {
     this.notifyState();
   }
 
+  async setCustomEffect(effect: CustomEffectType): Promise<void> {
+    this.state.customEffect = effect;
+    this.notifyState();
+  }
+
+  async setCustomEffectConfig(effect: CustomEffectType, config: CustomEffectConfig): Promise<void> {
+    this.state.customEffect = effect;
+    this.state.customConfig = {
+      ...(this.state.customConfig || {}),
+      ...config
+    };
+    this.notifyState();
+  }
 
   async restartAll(): Promise<boolean> {
     console.log('[MockService] Restarted all');

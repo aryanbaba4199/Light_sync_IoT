@@ -3,28 +3,11 @@ import { useLightingStore } from '../store/lightingStore';
 import { LedStripPreview300 } from '../components/LedStripPreview300';
 import { MusicMappingEditor } from '../components/MusicMappingEditor';
 import { MovieLayoutEditor } from '../components/MovieLayoutEditor';
+import { CustomEffectEditor } from '../components/CustomEffectEditor';
 
 export const ExperiencesScreen = () => {
-  const { color, brightness, mode, setMode, setColor, setBrightness, restartAll } = useLightingStore();
+  const { mode, setMode, restartAll } = useLightingStore();
   const [isRestarting, setIsRestarting] = useState(false);
-  
-  const rgbToHex = (r: number, g: number, b: number) => '#' + [r, g, b].map(x => {
-    const hex = x.toString(16);
-    return hex.length === 1 ? '0' + hex : hex;
-  }).join('');
-
-  const hexToRgb = (hex: string) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
-    } : { r: 255, g: 255, b: 255 };
-  };
-
-  const handleColorChange = (r: number, g: number, b: number) => {
-    setColor({ r, g, b });
-  };
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -62,33 +45,7 @@ export const ExperiencesScreen = () => {
 
       <div className="bg-dev-surface-elevated border border-dev-border-light rounded-2xl p-8">
         {mode === 'custom' && (
-          <div>
-            <h2 className="text-xl font-bold mb-2">CUSTOM LIGHTING</h2>
-            <p className="caption mb-8">Take full manual control of your environment.</p>
-
-            <h3 className="text-sm tracking-wide text-dev-text-secondary mb-4 uppercase">Color Picker</h3>
-            <div className="flex gap-6 mb-12 items-center">
-              <input 
-                type="color" 
-                value={rgbToHex(color.r, color.g, color.b)}
-                onChange={(e) => {
-                  const {r,g,b} = hexToRgb(e.target.value);
-                  handleColorChange(r, g, b);
-                }}
-                style={{ width: '80px', height: '80px', padding: 0, border: 'none', borderRadius: '12px', cursor: 'pointer' }}
-              />
-              <p className="caption">Click the square to open the OS color picker and choose any color combination!</p>
-            </div>
-
-            <h3 className="text-sm tracking-wide text-dev-text-secondary mb-4 uppercase">Brightness ({Math.round(brightness)}%)</h3>
-            <input 
-              type="range" 
-              min="0" max="100" 
-              value={brightness}
-              onChange={(e) => setBrightness(parseInt(e.target.value))}
-              className="w-full accent-dev-primary h-2 bg-dev-surface-pressed rounded-lg appearance-none cursor-pointer"
-            />
-          </div>
+          <CustomEffectEditor />
         )}
         
         {mode === 'music' && (

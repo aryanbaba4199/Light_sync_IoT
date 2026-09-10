@@ -15,6 +15,23 @@ export const VirtualStrip = ({ ledCount: propLedCount }: { ledCount?: number }) 
         // The children divs will inherit and use these to render the colors using GPU acceleration.
         containerRef.current.style.setProperty('--v-rgb', `${state.color.r}, ${state.color.g}, ${state.color.b}`);
         containerRef.current.style.setProperty('--v-brightness', (state.renderBrightness / 100).toString());
+
+        const dots = containerRef.current.querySelectorAll<HTMLDivElement>('.virtual-led-dot');
+        if (state.ledFrame && Array.isArray(state.ledFrame) && state.ledFrame.length > 0) {
+          const frame = state.ledFrame;
+          const frameLen = frame.length;
+          dots.forEach((dot, idx) => {
+            const sampleIdx = Math.min(idx, frameLen - 1);
+            const [r, g, b] = frame[sampleIdx];
+            dot.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+            dot.style.boxShadow = (r > 10 || g > 10 || b > 10) ? `0 0 6px 2px rgba(${r}, ${g}, ${b}, 0.8)` : 'none';
+          });
+        } else {
+          dots.forEach((dot) => {
+            dot.style.backgroundColor = '';
+            dot.style.boxShadow = '';
+          });
+        }
       }
     });
 
@@ -50,7 +67,7 @@ export const VirtualStrip = ({ ledCount: propLedCount }: { ledCount?: number }) 
           return (
             <div 
               key={i}
-              className="w-1.5 h-1.5 rounded-full relative z-10 transition-colors duration-75"
+              className="virtual-led-dot w-1.5 h-1.5 rounded-full relative z-10 transition-colors duration-75"
               style={{
                 backgroundColor: 'rgba(var(--v-rgb), var(--v-brightness))',
                 boxShadow: '0 0 6px 2px rgba(var(--v-rgb), var(--v-brightness))',

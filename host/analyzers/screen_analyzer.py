@@ -67,12 +67,18 @@ class ScreenAnalyzer:
         logger.info("Screen Analyzer started.")
 
     def stop(self):
-        if not self.running:
-            return
         self.running = False
+        if hasattr(self, 'thread') and self.thread and self.thread.is_alive():
+            try:
+                self.thread.join(timeout=1.0)
+            except Exception:
+                pass
         self.status = "stopped"
         if self.sct:
-            self.sct.close()
+            try:
+                self.sct.close()
+            except Exception:
+                pass
             self.sct = None
         logger.info("Screen Analyzer stopped.")
 
@@ -203,8 +209,9 @@ class ScreenAnalyzer:
                     pass
                 
             except mss.exception.ScreenShotError as e:
-                self.status = "permission_denied"
-                self.running = False
+                if self.running:
+                    self.status = "permission_denied"
+                    self.running = False
                 logger.error(f"Screenshot error (possibly permission denied): {e}")
                 break
             except Exception as e:

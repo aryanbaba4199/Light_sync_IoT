@@ -9,9 +9,9 @@
             "right": 50,
             "bottom": 100,
             "left": 50,
-            "sampling_thickness": 0.1,
+            "sampling_thickness": 0.08,
             "clockwise": true,
-            "sync_music": false,
+            "sync_music": true,
             "smoothing": 0.8,
             "brightness_limit": 1.0,
             "min_music_brightness": 0.35,
@@ -42,7 +42,8 @@
                     "left": -4480,
                     "top": -186
                 }
-            ]
+            ],
+            "total_leds": 300
         },
         "music": {
             "smoothing": 0.5,

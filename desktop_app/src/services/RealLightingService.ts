@@ -1,5 +1,5 @@
 import type { ILightingService } from './LightingService';
-import type { LightingMode, RGBColor, LightingState, MusicResponseMode } from '../types/lighting';
+import type { LightingMode, RGBColor, LightingState, MusicResponseMode, CustomEffectType, CustomEffectConfig } from '../types/lighting';
 
 export class RealLightingService implements ILightingService {
   private ws: WebSocket | null = null;
@@ -138,6 +138,10 @@ export class RealLightingService implements ILightingService {
         musicMappings,
         movieSettings: p.movie_settings,
         movieLayout: p.movie_layout,
+        customEffect: p.custom_effect,
+        customConfig: p.custom_config,
+        customSettings: p.custom_settings,
+        ledFrame: p.led_frame,
         ledCount: p.led_count ?? 300,
         virtualFrame: p.virtual_frame
       };
@@ -277,6 +281,13 @@ export class RealLightingService implements ILightingService {
     this.sendCommand('set_movie_monitor', { monitor_index: monitorIndex });
   }
 
+  async setCustomEffect(effect: CustomEffectType): Promise<void> {
+    this.sendCommand('set_custom_effect', { effect });
+  }
+
+  async setCustomEffectConfig(effect: CustomEffectType, config: CustomEffectConfig): Promise<void> {
+    this.sendCommand('set_custom_config', { effect, config });
+  }
 
   async restartAll(): Promise<boolean> {
     this.sendCommand('restart_all', {});

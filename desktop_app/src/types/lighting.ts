@@ -84,6 +84,10 @@ export interface LightingState {
   musicMappings?: MusicMapping[];
   movieSettings?: MovieSettings;
   movieLayout?: MovieLayout;
+  customEffect?: CustomEffectType;
+  customConfig?: CustomEffectConfig;
+  customSettings?: CustomSettings;
+  ledFrame?: [number, number, number][];
   ledCount?: number;
   virtualFrame?: RGBColor[];
   brightness: number; // The user-facing target
@@ -145,4 +149,53 @@ export interface CustomModeSettings {
   musicSettings?: any;
   brightness: number;
   effect: 'Static' | 'Pulse' | 'Breathing';
+}
+
+export type CustomEffectType =
+  | 'rainfall'
+  | 'flash'
+  | 'random'
+  | 'wave'
+  | 'comet'
+  | 'breathing'
+  | 'sparkle'
+  | 'color_chase'
+  | 'fire'
+  | 'rainbow_flow'
+  | 'static';
+
+export interface CustomEffectConfig {
+  color?: RGBColor;
+  background_color?: RGBColor;
+  speed?: number;
+  active_led_count?: number;
+  trail_length?: number;
+  tail_length?: number;
+  color_mode?: 'single' | 'random' | 'palette';
+  palette?: RGBColor[];
+  fade?: boolean;
+  min_brightness?: number;
+  max_brightness?: number;
+  width?: number;
+  wavelength?: number;
+  saturation?: number;
+  brightness?: number;
+  direction?: 'forward' | 'backward' | 'bounce';
+  decay_rate?: number;
+  colors?: RGBColor[];
+  group_size?: number;
+  gap?: number;
+  heat?: number;
+  flicker?: number;
+}
+
+export interface CustomSettings {
+  effect?: CustomEffectType;
+  config?: CustomEffectConfig;
+  configs?: Record<string, CustomEffectConfig>;
+  r?: number;
+  g?: number;
+  b?: number;
+  brightness?: number;
+  smoothing?: number;
 }

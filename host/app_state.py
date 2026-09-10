@@ -21,6 +21,10 @@ class AppState:
             from movie_models import MovieLayout
         except ImportError:
             from host.movie_models import MovieLayout
+        try:
+            from custom_effects import DEFAULT_EFFECT_CONFIGS
+        except ImportError:
+            from host.custom_effects import DEFAULT_EFFECT_CONFIGS
         self.led_count = LED_COUNT
 
         # Default settings
@@ -49,11 +53,21 @@ class AppState:
             },
             "developer": {"smoothing": 0.8, "brightness_limit": 0.7},
             "game": {"smoothing": 0.2, "brightness_limit": 1.0}, 
-            "custom": {"r": 255, "g": 255, "b": 255, "brightness": 1.0, "smoothing": 0.5}
+            "custom": {
+                "effect": "rainfall",
+                "configs": {k: dict(v) for k, v in DEFAULT_EFFECT_CONFIGS.items()},
+                "config": dict(DEFAULT_EFFECT_CONFIGS["rainfall"]),
+                "r": 0,
+                "g": 120,
+                "b": 255,
+                "brightness": 1.0,
+                "smoothing": 0.5
+            }
         }
         self.load()
         self._ensure_music_mappings()
         self._ensure_movie_settings()
+        self._ensure_custom_settings()
 
     def _ensure_movie_settings(self):
         movie_conf = self.settings.setdefault("movie", {})
@@ -76,6 +90,42 @@ class AppState:
             if k not in movie_conf:
                 movie_conf[k] = v
                 dirty = True
+        if dirty:
+            self.save()
+
+    def _ensure_custom_settings(self):
+        try:
+            from custom_effects import DEFAULT_EFFECT_CONFIGS
+        except ImportError:
+            from host.custom_effects import DEFAULT_EFFECT_CONFIGS
+
+        custom_conf = self.settings.setdefault("custom", {})
+        dirty = False
+        if "effect" not in custom_conf or custom_conf["effect"] not in DEFAULT_EFFECT_CONFIGS:
+            custom_conf["effect"] = "rainfall"
+            dirty = True
+
+        configs = custom_conf.setdefault("configs", {})
+        for effect_name, default_cfg in DEFAULT_EFFECT_CONFIGS.items():
+            if effect_name not in configs or not isinstance(configs[effect_name], dict):
+                configs[effect_name] = dict(default_cfg)
+                dirty = True
+            else:
+                for k, v in default_cfg.items():
+                    if k not in configs[effect_name]:
+                        configs[effect_name][k] = v
+                        dirty = True
+
+        current_eff = custom_conf["effect"]
+        custom_conf["config"] = dict(configs.get(current_eff, DEFAULT_EFFECT_CONFIGS.get(current_eff, {})))
+
+        if "brightness" not in custom_conf:
+            custom_conf["brightness"] = 1.0
+            dirty = True
+        if "smoothing" not in custom_conf:
+            custom_conf["smoothing"] = 0.5
+            dirty = True
+
         if dirty:
             self.save()
 
@@ -302,3 +352,72 @@ class AppState:
             return True, None
         except Exception as e:
             return False, str(e)
+
+    def get_custom_effect(self) -> str:
+        return self.settings.get("custom", {}).get("effect", "rainfall")
+
+    def set_custom_effect(self, effect_name: str) -> bool:
+        try:
+            from custom_effects import DEFAULT_EFFECT_CONFIGS
+        except ImportError:
+            from host.custom_effects import DEFAULT_EFFECT_CONFIGS
+
+        effect = str(effect_name).lower()
+        if effect not in DEFAULT_EFFECT_CONFIGS:
+            return False
+        custom_conf = self.settings.setdefault("custom", {})
+        custom_conf["effect"] = effect
+        configs = custom_conf.setdefault("configs", {})
+        if effect not in configs:
+            configs[effect] = dict(DEFAULT_EFFECT_CONFIGS.get(effect, {}))
+        custom_conf["config"] = dict(configs[effect])
+        cfg = custom_conf["config"]
+        if "color" in cfg and isinstance(cfg["color"], dict):
+            custom_conf["r"] = cfg["color"].get("r", custom_conf.get("r", 255))
+            custom_conf["g"] = cfg["color"].get("g", custom_conf.get("g", 255))
+            custom_conf["b"] = cfg["color"].get("b", custom_conf.get("b", 255))
+        self.save()
+        return True
+
+    def get_custom_config(self, effect_name: Optional[str] = None) -> dict:
+        try:
+            from custom_effects import DEFAULT_EFFECT_CONFIGS
+        except ImportError:
+            from host.custom_effects import DEFAULT_EFFECT_CONFIGS
+
+        effect = str(effect_name).lower() if effect_name else self.get_custom_effect()
+        custom_conf = self.settings.get("custom", {})
+        configs = custom_conf.get("configs", {})
+        if effect in configs:
+            return dict(configs[effect])
+        return dict(DEFAULT_EFFECT_CONFIGS.get(effect, {}))
+
+    def set_custom_config(self, effect_name: str, config_dict: dict) -> Tuple[bool, Optional[str]]:
+        try:
+            from custom_effects import DEFAULT_EFFECT_CONFIGS
+        except ImportError:
+            from host.custom_effects import DEFAULT_EFFECT_CONFIGS
+
+        effect = str(effect_name).lower()
+        if effect not in DEFAULT_EFFECT_CONFIGS:
+            return False, f"Unknown effect '{effect_name}'"
+        if not isinstance(config_dict, dict):
+            return False, "Config must be a dictionary"
+
+        custom_conf = self.settings.setdefault("custom", {})
+        configs = custom_conf.setdefault("configs", {})
+        eff_cfg = configs.setdefault(effect, dict(DEFAULT_EFFECT_CONFIGS.get(effect, {})))
+        eff_cfg.update(config_dict)
+
+        if custom_conf.get("effect") == effect:
+            custom_conf["config"] = dict(eff_cfg)
+            if "color" in eff_cfg and isinstance(eff_cfg["color"], dict):
+                custom_conf["r"] = eff_cfg["color"].get("r", custom_conf.get("r", 255))
+                custom_conf["g"] = eff_cfg["color"].get("g", custom_conf.get("g", 255))
+                custom_conf["b"] = eff_cfg["color"].get("b", custom_conf.get("b", 255))
+
+        self.save()
+        return True, None
+
+    def get_custom_settings(self) -> dict:
+        return self.settings.get("custom", {})
