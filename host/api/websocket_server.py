@@ -32,7 +32,7 @@ class DevLightsAPI:
         if hasattr(self.engine.transport, 'get_active_transport_name'):
             active_transport = self.engine.transport.get_active_transport_name()
             # If serial, the ESP32 is physically connected
-            connected = self.engine.transport.serial_transport.is_connected() if active_transport == 'serial' else True
+            connected = self.engine.transport.serial_transport.is_connected()
         else:
             active_transport = self.engine.transport.__class__.__name__ if self.engine.transport else "none"
             connected = self.engine.transport.is_connected() if self.engine.transport else False
@@ -43,6 +43,7 @@ class DevLightsAPI:
             "payload": {
                 "mode": self.app_state.mode,
                 "output_mode": self.app_state.output_mode,
+                        "power_on": self.app_state.power_on,
                 "color": {
                     "r": self.engine.priority_manager.base_state.r,
                     "g": self.engine.priority_manager.base_state.g,
@@ -83,6 +84,13 @@ class DevLightsAPI:
                     self.analyzer_manager.check_state()
                     await self.broadcast_state()
                     
+            elif msg_type == "set_power":
+                power = payload.get("power_on")
+                if power is not None:
+                    self.app_state.set_power(power)
+                    logger.info(f"Power set to {power}")
+                    await self.broadcast_state()
+
             elif msg_type == "set_output_mode":
                 output_mode = payload.get("output_mode")
                 if output_mode:
@@ -166,7 +174,7 @@ class DevLightsAPI:
                 
                 if hasattr(self.engine.transport, 'get_active_transport_name'):
                     active_transport = self.engine.transport.get_active_transport_name()
-                    connected = self.engine.transport.serial_transport.is_connected() if active_transport == 'serial' else True
+                    connected = self.engine.transport.serial_transport.is_connected()
                 else:
                     active_transport = self.engine.transport.__class__.__name__ if self.engine.transport else "none"
                     connected = self.engine.transport.is_connected() if self.engine.transport else False
@@ -177,6 +185,7 @@ class DevLightsAPI:
                     "payload": {
                         "mode": self.app_state.mode,
                         "output_mode": self.app_state.output_mode,
+                        "power_on": self.app_state.power_on,
                         "color": {
                             "r": state.r,
                             "g": state.g,

@@ -23,6 +23,8 @@ class SerialTransport(BaseTransport):
         self.baudrate = baudrate
         self.ser = None
         self.lock = threading.Lock()
+        self.last_connect_attempt = 0
+        self.last_log_time = 0
         
     def _auto_discover_port(self):
         ports = serial.tools.list_ports.comports()
@@ -50,6 +52,12 @@ class SerialTransport(BaseTransport):
             if self.ser and self.ser.is_open:
                 return True
                 
+            import time
+            now = time.time()
+            if now - self.last_connect_attempt < 2:
+                return False
+            self.last_connect_attempt = now
+                
             port_to_use = self.port or self._auto_discover_port()
             if not port_to_use:
                 return False
@@ -59,9 +67,10 @@ class SerialTransport(BaseTransport):
                 self.ser = serial.Serial(port_to_use, self.baudrate, timeout=1, write_timeout=0.1, exclusive=True)
                 time.sleep(2) # Reset delay for ESP32
                 self.port = port_to_use
-                print(f"Serial Transport Connected: {self.port}")
+                print(f"[SerialTransport] Discovered ESP32... Selected {self.port}")
+                print(f"[SerialTransport] Connected")
                 return True
-            except serial.SerialException as e:
+            except Exception as e:
                 print(f"Serial Connect Failed: {e}")
                 self.ser = None
                 self.port = None # Clear cached port so we can re-discover
@@ -83,27 +92,31 @@ class SerialTransport(BaseTransport):
             if not self.connect():
                 return False
                 
-        # Clamp values to 0-255 to ensure strict bounds and prevent exceptions
         r = max(0, min(255, int(r)))
         g = max(0, min(255, int(g)))
         b = max(0, min(255, int(b)))
         brightness = max(0, min(255, int(brightness)))
         
-        # [MAGIC, R, G, B, Brightness]
         payload = bytes([0x55, r, g, b, brightness])
         
+        import time
+        now = time.time()
+        if now - self.last_log_time > 1.0:
+            print(f"[SerialTransport] SEND 55 {r:02X} {g:02X} {b:02X} {brightness:02X}")
+            self.last_log_time = now
+            
         with self.lock:
             if not self.ser or not self.ser.is_open:
                 return False
             try:
                 self.ser.write(payload)
-                self.ser.flush() # Ensure it's pushed out
+                self.ser.flush()
                 return True
-            except (serial.SerialException, serial.SerialTimeoutException) as e:
-                print(f"Connection lost or timeout during serial write: {e}. Disconnecting.")
+            except Exception as e:
+                print(f"Connection lost during serial write: {e}. Disconnecting.")
                 self.ser.close()
                 self.ser = None
-                self.port = None # Clear cached port so we can re-discover
+                self.port = None
                 return False
 
 class UDPTransport(BaseTransport):

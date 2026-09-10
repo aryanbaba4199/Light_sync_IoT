@@ -5,6 +5,7 @@ import { lightingService } from '../services';
 interface LightingStore {
   mode: LightingMode;
   outputMode: OutputMode;
+  power_on: boolean;
   color: RGBColor;
   brightness: number;
   renderBrightness: number;
@@ -18,14 +19,16 @@ interface LightingStore {
   // Actions
   setMode: (mode: LightingMode) => void;
   setOutputMode: (mode: OutputMode) => void;
+  setPower: (isOn: boolean) => void;
   setColor: (color: RGBColor) => void;
   setBrightness: (brightness: number) => void;
   initialize: () => void;
 }
 
-export const useLightingStore = create<LightingStore>((set, get) => ({
+export const useLightingStore = create<LightingStore>((set) => ({
   mode: 'custom',
   outputMode: 'auto',
+  power_on: true,
   color: { r: 255, g: 0, b: 0 },
   brightness: 100,
   renderBrightness: 100,
@@ -42,6 +45,11 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
   setOutputMode: (mode) => {
     lightingService.setOutputMode(mode);
     set({ outputMode: mode });
+  },
+
+  setPower: (isOn) => {
+    lightingService.setPower(isOn);
+    set({ power_on: isOn });
   },
 
   setColor: (color) => {
@@ -65,6 +73,7 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
       set({
         mode: state.mode,
         outputMode: state.outputMode,
+        power_on: state.power_on,
         color: state.color,
         brightness: state.brightness,
         renderBrightness: state.renderBrightness ?? state.brightness,

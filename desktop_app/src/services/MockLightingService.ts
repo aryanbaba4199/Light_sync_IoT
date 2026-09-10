@@ -7,7 +7,9 @@ export class MockLightingService implements ILightingService {
     color: { r: 139, g: 92, b: 246 },
     brightness: 74,
     connected: true,
-    transport: 'none'
+    transport: 'none',
+    outputMode: 'auto',
+    power_on: true
   };
 
   private stateCallbacks: ((state: LightingState) => void)[] = [];
@@ -34,7 +36,12 @@ export class MockLightingService implements ILightingService {
     return true;
   }
 
-  async setOutputMode(mode: string): Promise<void> {}
+  async setPower(isOn: boolean): Promise<void> {
+    this.state.power_on = isOn;
+    this.notifyState();
+  }
+
+  async setOutputMode(_mode: string): Promise<void> {}
 
   async setMode(mode: LightingMode): Promise<void> {
     this.state.mode = mode;

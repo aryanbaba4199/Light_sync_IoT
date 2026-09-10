@@ -89,6 +89,7 @@ export class RealLightingService implements ILightingService {
       const mappedState: LightingState = {
         mode: p.mode,
         outputMode: p.output_mode || 'auto',
+        power_on: p.power_on ?? true,
         color: p.color, // { r, g, b }
         brightness: p.brightness * 100, // Target brightness
         renderBrightness: (p.render_brightness ?? p.brightness) * 100, // Smoothed brightness
@@ -131,6 +132,10 @@ export class RealLightingService implements ILightingService {
 
   async setMode(mode: LightingMode): Promise<void> {
     this.sendCommand('set_mode', { mode });
+  }
+
+  async setPower(isOn: boolean): Promise<void> {
+    this.sendCommand('set_power', { power_on: isOn });
   }
 
   async setOutputMode(outputMode: string): Promise<void> {

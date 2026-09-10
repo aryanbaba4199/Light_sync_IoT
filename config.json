@@ -1,0 +1,30 @@
+{
+    "mode": "custom",
+    "output_mode": "esp32",
+    "power_on": true,
+    "settings": {
+        "movie": {
+            "smoothing": 0.8,
+            "brightness_limit": 1.0
+        },
+        "music": {
+            "smoothing": 0.5,
+            "brightness_limit": 1.0
+        },
+        "developer": {
+            "smoothing": 0.8,
+            "brightness_limit": 0.7
+        },
+        "game": {
+            "smoothing": 0.2,
+            "brightness_limit": 1.0
+        },
+        "custom": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "brightness": 1.0,
+            "smoothing": 0.5
+        }
+    }
+}

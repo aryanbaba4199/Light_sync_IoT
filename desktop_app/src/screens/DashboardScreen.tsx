@@ -1,10 +1,8 @@
-import React from 'react';
-import { Film, Music, Gamepad2, Code, Sliders, MonitorPlay, Zap, Power } from 'lucide-react';
+import { Film, Music, Gamepad2, Code, Sliders, MonitorPlay, Power } from 'lucide-react';
 import { useLightingStore } from '../store/lightingStore';
-import type { LightingMode } from '../types/lighting';
 import { VirtualStrip } from '../components/VirtualStrip';
 
-const ExpCard = ({ icon: Icon, title, desc, modeId, isActive, onClick }: any) => {
+const ExpCard = ({ icon: Icon, title, desc, isActive, onClick }: any) => {
   return (
     <div 
       onClick={onClick}
@@ -28,7 +26,7 @@ const ExpCard = ({ icon: Icon, title, desc, modeId, isActive, onClick }: any) =>
 };
 
 export const DashboardScreen = () => {
-  const { color, brightness, mode, setMode, setBrightness, outputMode, setOutputMode, transport, engineConnected, analyzers } = useLightingStore();
+  const { color, brightness, mode, setMode, setBrightness, outputMode, setOutputMode, power_on, setPower, transport, engineConnected, analyzers } = useLightingStore();
 
 
   return (
@@ -36,13 +34,13 @@ export const DashboardScreen = () => {
       <header className="mb-8 flex justify-between items-end">
         <div className="flex items-center gap-4">
           <button 
-            onClick={() => setMode(mode === 'off' ? 'movie' : 'off')}
+            onClick={() => setPower(!power_on)}
             className={`p-2 rounded-full transition-colors ${
-              mode === 'off' 
+              !power_on 
                 ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20' 
                 : 'bg-green-500/10 text-green-500 hover:bg-green-500/20'
             }`}
-            title={mode === 'off' ? "Turn On" : "Turn Off"}
+            title={!power_on ? "Turn On" : "Turn Off"}
           >
             <Power size={24} />
           </button>
@@ -143,11 +141,11 @@ export const DashboardScreen = () => {
       <section>
         <h3 className="text-lg font-semibold tracking-wide mb-4">YOUR EXPERIENCES</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <ExpCard icon={Film} title="Movie" desc="Fill the room with the scene." modeId="movie" isActive={mode === 'movie'} onClick={() => setMode('movie')} />
-          <ExpCard icon={Music} title="Music" desc="Turn sound into light." modeId="music" isActive={mode === 'music'} onClick={() => setMode('music')} />
-          <ExpCard icon={Gamepad2} title="Game" desc="React to every moment." modeId="game" isActive={mode === 'game'} onClick={() => setMode('game')} />
-          <ExpCard icon={Code} title="Developer" desc="Your code has a pulse." modeId="developer" isActive={mode === 'developer'} onClick={() => setMode('developer')} />
-          <ExpCard icon={Sliders} title="Custom" desc="Your light. Your rules." modeId="custom" isActive={mode === 'custom'} onClick={() => setMode('custom')} />
+          <ExpCard icon={Film} title="Movie" desc="Fill the room with the scene." isActive={mode === 'movie'} onClick={() => setMode('movie')} />
+          <ExpCard icon={Music} title="Music" desc="Turn sound into light." isActive={mode === 'music'} onClick={() => setMode('music')} />
+          <ExpCard icon={Gamepad2} title="Game" desc="React to every moment." isActive={mode === 'game'} onClick={() => setMode('game')} />
+          <ExpCard icon={Code} title="Developer" desc="Your code has a pulse." isActive={mode === 'developer'} onClick={() => setMode('developer')} />
+          <ExpCard icon={Sliders} title="Custom" desc="Your light. Your rules." isActive={mode === 'custom'} onClick={() => setMode('custom')} />
         </div>
       </section>
     </div>

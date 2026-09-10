@@ -10,6 +10,7 @@ export interface ILightingService {
 
   // Commands
   setMode(mode: LightingMode): Promise<void>;
+  setPower(isOn: boolean): Promise<void>;
   setOutputMode(outputMode: string): Promise<void>;
   setBrightness(value: number): Promise<void>; // 0 to 100
   setColor(color: RGBColor): Promise<void>;

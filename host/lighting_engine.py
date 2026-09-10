@@ -3,7 +3,6 @@ import threading
 from lighting_state import LightingState, EventPriority
 
 class PriorityManager:
-    """Handles stacking and restoration of temporary events (like developer builds)."""
     def __init__(self):
         self.base_state = LightingState()
         self.active_event = None
@@ -15,7 +14,6 @@ class PriorityManager:
         self.base_state.brightness = brightness
         
     def set_event(self, state: LightingState, duration: float):
-        # Only override if new event priority is >= current event (if any)
         if not self.active_event or state.priority.value >= self.active_event.priority.value:
             state.expiration = time.time() + duration
             self.active_event = state
@@ -23,7 +21,7 @@ class PriorityManager:
     def get_current_target(self) -> LightingState:
         if self.active_event:
             if time.time() > self.active_event.expiration:
-                self.active_event = None # Expired
+                self.active_event = None
             else:
                 return self.active_event
         return self.base_state
@@ -37,9 +35,8 @@ class LightingEngine:
         self.smoothing_factor = 0.8
         self.brightness_ceiling = 1.0
         
-        # We store the smoothed, currently-rendered values
         self.render_state = LightingState()
-        self.user_intensity = 1.0 # 0.0 to 1.0
+        self.user_intensity = 1.0 
         
         self.state_lock = threading.Lock()
         self.running = True
@@ -75,8 +72,6 @@ class LightingEngine:
             self.transport.disconnect()
 
     def _render_loop(self):
-        # Run rendering independently from input ingestion.
-        # Lowered to 15 FPS to prevent WS2812B data line corruption on 3.3V logic without a level shifter
         target_fps = 15
         frame_time = 1.0 / target_fps
         
@@ -90,15 +85,20 @@ class LightingEngine:
                 target_b = target_state.b
                 target_bright = target_state.brightness
             
-            # Apply smoothing and mode limits outside the lock
             smooth = self.smoothing_factor
             mode_limit = 1.0
+            power_on = True
+            
             if self.app_state:
                 settings = self.app_state.get_current_settings()
                 smooth = settings.get("smoothing", self.smoothing_factor)
                 mode_limit = settings.get("brightness_limit", 1.0)
+                power_on = self.app_state.power_on
                 
-            final_target_bright = target_bright * mode_limit
+            if not power_on:
+                final_target_bright = 0
+            else:
+                final_target_bright = target_bright * mode_limit
                 
             self.render_state.r = int((target_r * (1 - smooth)) + (self.render_state.r * smooth))
             self.render_state.g = int((target_g * (1 - smooth)) + (self.render_state.g * smooth))

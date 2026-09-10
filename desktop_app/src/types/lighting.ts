@@ -18,6 +18,7 @@ export type OutputMode = 'auto' | 'virtual' | 'esp32';
 export interface LightingState {
   mode: LightingMode;
   outputMode: OutputMode;
+  power_on: boolean;
   color: RGBColor;
   brightness: number; // The user-facing target
   renderBrightness?: number; // The smoothed output for visuals

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLightingStore } from '../store/lightingStore';
-import { Zap, Shield, Monitor, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Zap, Monitor, CheckCircle } from 'lucide-react';
 
 export const FirstRunSetup = ({ onComplete }: { onComplete: () => void }) => {
   const [step, setStep] = useState(1);

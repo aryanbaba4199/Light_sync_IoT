@@ -1,4 +1,3 @@
-import React from 'react';
 import { useLightingStore } from '../store/lightingStore';
 import { Cpu, Usb, Activity } from 'lucide-react';
 
