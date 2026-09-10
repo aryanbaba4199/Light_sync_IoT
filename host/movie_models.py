@@ -111,6 +111,7 @@ class MovieLayout:
 @dataclass
 class MovieSettings:
     layout: MovieLayout = field(default_factory=MovieLayout)
+    monitor_index: int = 1  # Display index (1, 2, 3...)
     sync_music: bool = False
     smoothing: float = 0.70
     brightness_limit: float = 1.0
@@ -125,6 +126,7 @@ class MovieSettings:
             "left": self.layout.left,
             "sampling_thickness": self.layout.sampling_thickness,
             "clockwise": self.layout.clockwise,
+            "monitor_index": self.monitor_index,
             "sync_music": self.sync_music,
             "smoothing": self.smoothing,
             "brightness_limit": self.brightness_limit,
@@ -137,9 +139,11 @@ class MovieSettings:
         layout = MovieLayout.from_dict(data)
         return cls(
             layout=layout,
+            monitor_index=int(data.get("monitor_index", 1)),
             sync_music=bool(data.get("sync_music", False)),
             smoothing=float(data.get("smoothing", 0.70)),
             brightness_limit=float(data.get("brightness_limit", 1.0)),
             min_music_brightness=float(data.get("min_music_brightness", 0.35)),
             max_music_brightness=float(data.get("max_music_brightness", 1.00)),
         )
+

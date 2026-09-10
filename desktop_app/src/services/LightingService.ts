@@ -23,7 +23,9 @@ export interface ILightingService {
   setMovieLayout(layout: any): Promise<void>;
   setMovieMusicSync(enabled: boolean): Promise<void>;
   setMovieSettings(settings: any): Promise<void>;
+  setMovieMonitor(monitorIndex: number): Promise<void>;
   restartAll(): Promise<boolean>;
+
   
   // Callbacks
   onStateChange(callback: (state: LightingState) => void): void;

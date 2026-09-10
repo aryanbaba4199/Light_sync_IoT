@@ -260,12 +260,16 @@ class LightingEngine:
                 self.render_state.b = avg_b
                 self.render_state.brightness = avg_bright
 
-            elif current_mode == "movie" and movie_frame is not None:
-                # MOVIE MODE: Spatial perimeter rendering with optional Music Sync
+            elif current_mode == "movie":
+                # MOVIE MODE: Center-Outward Radial Perimeter rendering with optional Music Sync
+                if movie_frame is None:
+                    movie_frame = [(0, 0, 0)] * self.led_count
+
                 movie_settings = self.app_state.settings.get("movie", {}) if self.app_state else {}
                 sync_music = bool(movie_settings.get("sync_music", False))
                 min_bright = float(movie_settings.get("min_music_brightness", 0.35))
                 max_bright = float(movie_settings.get("max_music_brightness", 1.00))
+
 
                 if sync_music and analysis.music_gate_open:
                     # Music density modulates intensity; colors are strictly from video

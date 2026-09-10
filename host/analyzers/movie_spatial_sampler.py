@@ -1,14 +1,18 @@
 """
-Spatial Perimeter Video Sampler for Movie Mode in DevLights.
+Center-Outward Radial Angle Spatial Perimeter Sampler for Movie Mode in DevLights.
 
-Performs:
-1. Active Video Region Detection (letterbox / pillarbox black-bar cropping).
-2. Perimeter Edge Slicing with position-aware LED gradients.
-3. Trimmed / luminance-weighted aggregation per spatial window.
-4. Seamless Corner Smoothing across adjacent edges.
-5. Asymmetric Temporal Color Filtering (fast attack for explosions, smooth release).
+Architecture:
+1. Calculates the optical center of the display / active video region: (cx, cy).
+2. Maps each physical LED ball to its coordinate along the perimeter (every centimeter).
+3. Projects radial rays and angular sectors (wedges) from (cx, cy) to each ball.
+4. Samples color along the angular sector towards the perimeter, avoiding center logo contamination
+   and black letterbox bars.
+5. In corners, angles sweep continuously through corner vectors (e.g. Top-Left corner is ~ -135°),
+   naturally capturing corner colors (e.g. yellow) with zero artificial edge seams.
+6. Applies asymmetric temporal filtering (fast attack for dynamic explosions, smooth decay).
 """
 import numpy as np
+import math
 from typing import List, Tuple, Dict, Optional, Any
 try:
     from movie_models import MovieLayout, DEFAULT_TOP_LEDS, DEFAULT_RIGHT_LEDS, DEFAULT_BOTTOM_LEDS, DEFAULT_LEFT_LEDS
@@ -20,12 +24,17 @@ class MovieSpatialSampler:
     def __init__(self, layout: Optional[MovieLayout] = None):
         self.layout = layout or MovieLayout()
         self.prev_led_colors: Optional[np.ndarray] = None  # Shape: (N, 3)
-        self.attack_rate = 0.75   # Fast attack for explosions and dynamic action
-        self.release_rate = 0.25  # Smooth release to prevent high-frequency flicker
-        self.black_threshold = 12.0  # Luminance cutoff for letterbox / black bar detection
+        self.attack_rate = 0.70   # Fast attack for dynamic explosions
+        self.release_rate = 0.25  # Smooth release to eliminate flicker
+        self.black_threshold = 12.0  # Luminance cutoff for letterbox detection
+        # Radial depth: samples from 0.50 (inner threshold) to 0.98 (near perimeter)
+        self.radial_start = 0.50
+        self.radial_end = 0.98
+        self.num_radial_steps = 6
+        self.num_sub_angles = 3
 
     def update_layout(self, layout: MovieLayout):
-        if layout.total_leds != (len(self.prev_led_colors) if self.prev_led_colors is not None else 0):
+        if self.prev_led_colors is not None and len(self.prev_led_colors) != layout.total_leds:
             self.prev_led_colors = None
         self.layout = layout
 
@@ -44,12 +53,8 @@ class MovieSpatialSampler:
         step_x = max(1, w // 80)
         small = frame[::step_y, ::step_x]
 
-        # Extract RGB channels (handle BGRA or BGR/RGB)
-        if small.shape[-1] == 4:
-            b = small[:, :, 0].astype(np.float32)
-            g = small[:, :, 1].astype(np.float32)
-            r = small[:, :, 2].astype(np.float32)
-        elif small.shape[-1] == 3:
+        # Extract RGB channels (handle BGRA or BGR)
+        if small.shape[-1] >= 3:
             b = small[:, :, 0].astype(np.float32)
             g = small[:, :, 1].astype(np.float32)
             r = small[:, :, 2].astype(np.float32)
@@ -63,7 +68,7 @@ class MovieSpatialSampler:
         row_lum = np.mean(lum, axis=1)
         col_lum = np.mean(lum, axis=0)
 
-        # Check overall luminance: if full frame is dark, don't crop falsely
+        # If full frame is dark, don't crop falsely
         if np.mean(lum) < self.black_threshold:
             return 0, h, 0, w
 
@@ -98,7 +103,6 @@ class MovieSpatialSampler:
                 xmax_idx = j + 1
                 break
 
-        # Convert downsampled indices back to original frame coordinates
         ymin = int(ymin_idx * step_y)
         ymax = int(min(h, ymax_idx * step_y))
         xmin = int(xmin_idx * step_x)
@@ -110,47 +114,79 @@ class MovieSpatialSampler:
 
         return ymin, ymax, xmin, xmax
 
-    def _sample_region_color(self, region: np.ndarray) -> np.ndarray:
+    def get_perimeter_ball_coordinates(
+        self, ymin: int, ymax: int, xmin: int, xmax: int
+    ) -> List[Tuple[float, float, str]]:
         """
-        Computes robust RGB from a sub-region using luminance-weighted averaging.
-        Returns float array [r, g, b].
+        Maps each physical LED ball along the perimeter of the active rectangle.
+        Returns a list of (x, y, edge_name) for all bulbs in sequence.
         """
-        if region.size == 0:
-            return np.array([0.0, 0.0, 0.0], dtype=np.float32)
+        top_count = max(0, int(self.layout.top))
+        right_count = max(0, int(self.layout.right))
+        bottom_count = max(0, int(self.layout.bottom))
+        left_count = max(0, int(self.layout.left))
 
-        # Flatten spatial pixels
-        pixels = region.reshape(-1, region.shape[-1])
-        if pixels.shape[-1] >= 3:
-            # Assume BGR(A) input from screen capture (standard for mss/OpenCV)
-            b = pixels[:, 0].astype(np.float32)
-            g = pixels[:, 1].astype(np.float32)
-            r = pixels[:, 2].astype(np.float32)
+        w = float(max(1, xmax - xmin))
+        h = float(max(1, ymax - ymin))
+        fx_min = float(xmin)
+        fy_min = float(ymin)
+        fx_max = float(xmax)
+        fy_max = float(ymax)
+
+        coords: List[Tuple[float, float, str]] = []
+
+        if self.layout.clockwise:
+            # 1. TOP EDGE: Left -> Right
+            for i in range(top_count):
+                frac = (i + 0.5) / max(1, top_count)
+                coords.append((fx_min + frac * w, fy_min, "top"))
+
+            # 2. RIGHT EDGE: Top -> Bottom
+            for i in range(right_count):
+                frac = (i + 0.5) / max(1, right_count)
+                coords.append((fx_max, fy_min + frac * h, "right"))
+
+            # 3. BOTTOM EDGE: Right -> Left
+            for i in range(bottom_count):
+                frac = (i + 0.5) / max(1, bottom_count)
+                coords.append((fx_max - frac * w, fy_max, "bottom"))
+
+            # 4. LEFT EDGE: Bottom -> Top
+            for i in range(left_count):
+                frac = (i + 0.5) / max(1, left_count)
+                coords.append((fx_min, fy_max - frac * h, "left"))
         else:
-            return np.array([0.0, 0.0, 0.0], dtype=np.float32)
+            # Counter-Clockwise
+            # 1. TOP EDGE: Right -> Left
+            for i in range(top_count):
+                frac = (i + 0.5) / max(1, top_count)
+                coords.append((fx_max - frac * w, fy_min, "top"))
 
-        lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
-        max_lum = float(np.max(lum))
+            # 2. LEFT EDGE: Top -> Bottom
+            for i in range(left_count):
+                frac = (i + 0.5) / max(1, left_count)
+                coords.append((fx_min, fy_min + frac * h, "left"))
 
-        if max_lum < 5.0:
-            # Truly black or near-black region
-            return np.array([float(np.mean(r)), float(np.mean(g)), float(np.mean(b))], dtype=np.float32)
+            # 3. BOTTOM EDGE: Left -> Right
+            for i in range(bottom_count):
+                frac = (i + 0.5) / max(1, bottom_count)
+                coords.append((fx_min + frac * w, fy_max, "bottom"))
 
-        # Filter out extreme dark pixels if illuminated content exists in the window
-        valid_mask = lum >= max(8.0, max_lum * 0.15)
-        if np.any(valid_mask):
-            return np.array([
-                float(np.mean(r[valid_mask])),
-                float(np.mean(g[valid_mask])),
-                float(np.mean(b[valid_mask]))
-            ], dtype=np.float32)
+            # 4. RIGHT EDGE: Bottom -> Top
+            for i in range(right_count):
+                frac = (i + 0.5) / max(1, right_count)
+                coords.append((fx_max, fy_max - frac * h, "right"))
 
-        return np.array([float(np.mean(r)), float(np.mean(g)), float(np.mean(b))], dtype=np.float32)
+        return coords
 
-    def sample_perimeter(self, frame: np.ndarray) -> Tuple[List[Tuple[int, int, int]], Dict[str, Tuple[int, int, int]], Tuple[int, int, int, int]]:
+    def sample_perimeter(
+        self, frame: np.ndarray
+    ) -> Tuple[List[Tuple[int, int, int]], Dict[str, Tuple[int, int, int]], Tuple[int, int, int, int]]:
         """
-        Spatially samples the video frame perimeter according to self.layout.
+        Samples the frame perimeter using Center-Outward Radial Angles.
+        
         Returns:
-          - per_led_rgb: List of (r, g, b) tuples for each physical LED.
+          - per_led_rgb: List of (r, g, b) tuples for each physical LED ball.
           - edge_averages: Dict with average (r, g, b) for "top", "right", "bottom", "left".
           - active_bounds: (ymin, ymax, xmin, xmax).
         """
@@ -158,148 +194,139 @@ class MovieSpatialSampler:
         if total == 0:
             return [], {"top": (0, 0, 0), "right": (0, 0, 0), "bottom": (0, 0, 0), "left": (0, 0, 0)}, (0, 0, 0, 0)
 
-        # 1. Detect active video region (handles letterboxing/pillarboxing)
+        frame_h, frame_w = frame.shape[:2]
+        if frame_h == 0 or frame_w == 0:
+            return [(0, 0, 0)] * total, {"top": (0, 0, 0), "right": (0, 0, 0), "bottom": (0, 0, 0), "left": (0, 0, 0)}, (0, 0, 0, 0)
+
+        # 1. Detect active video region (handles letterbox/pillarbox)
         ymin, ymax, xmin, xmax = self.detect_active_video_region(frame)
-        act_h = max(1, ymax - ymin)
-        act_w = max(1, xmax - xmin)
+        act_w = max(2, xmax - xmin)
+        act_h = max(2, ymax - ymin)
 
-        thickness = float(self.layout.sampling_thickness)
-        dy = max(2, min(act_h // 2, int(act_h * thickness)))
-        dx = max(2, min(act_w // 2, int(act_w * thickness)))
+        # 2. Display / Active Center
+        cx = (xmin + xmax) / 2.0
+        cy = (ymin + ymax) / 2.0
+        half_w = act_w / 2.0
+        half_h = act_h / 2.0
 
-        raw_led_colors = np.zeros((total, 3), dtype=np.float32)
-        edge_ranges = self.layout.get_edge_ranges()
+        # 3. Perimeter ball coordinates (every centimeter)
+        ball_info = self.get_perimeter_ball_coordinates(ymin, ymax, xmin, xmax)
+        if len(ball_info) != total:
+            total = len(ball_info)
 
-        # ── TOP EDGE ──────────────────────────────────────────────────────────
-        top_start, top_end = edge_ranges["top"]
-        top_count = top_end - top_start
-        if top_count > 0:
-            slice_w = max(2, act_w / top_count)
-            top_strip = frame[ymin : ymin + dy, xmin : xmax]
-            for i in range(top_count):
-                idx = top_start + i
-                t = (i + 0.5) / top_count
-                center_x = int(t * act_w)
-                x_start = max(0, int(center_x - slice_w * 0.8))
-                x_end = min(act_w, int(center_x + slice_w * 0.8 + 1))
-                window = top_strip[:, x_start:x_end]
-                raw_led_colors[idx] = self._sample_region_color(window)
-
-        # ── RIGHT EDGE ────────────────────────────────────────────────────────
-        right_start, right_end = edge_ranges["right"]
-        right_count = right_end - right_start
-        if right_count > 0:
-            slice_h = max(2, act_h / right_count)
-            right_strip = frame[ymin : ymax, max(0, xmax - dx) : xmax]
-            for i in range(right_count):
-                idx = right_start + i
-                t = (i + 0.5) / right_count
-                center_y = int(t * act_h)
-                y_start = max(0, int(center_y - slice_h * 0.8))
-                y_end = min(act_h, int(center_y + slice_h * 0.8 + 1))
-                window = right_strip[y_start:y_end, :]
-                raw_led_colors[idx] = self._sample_region_color(window)
-
-        # ── BOTTOM EDGE (Clockwise: Right to Left) ───────────────────────────
-        bottom_start, bottom_end = edge_ranges["bottom"]
-        bottom_count = bottom_end - bottom_start
-        if bottom_count > 0:
-            slice_w = max(2, act_w / bottom_count)
-            bottom_strip = frame[max(0, ymax - dy) : ymax, xmin : xmax]
-            for i in range(bottom_count):
-                idx = bottom_start + i
-                # Clockwise: start from right (x=act_w) to left (x=0)
-                t = (i + 0.5) / bottom_count
-                center_x = int(act_w - t * act_w)
-                x_start = max(0, int(center_x - slice_w * 0.8))
-                x_end = min(act_w, int(center_x + slice_w * 0.8 + 1))
-                window = bottom_strip[:, x_start:x_end]
-                raw_led_colors[idx] = self._sample_region_color(window)
-
-        # ── LEFT EDGE (Clockwise: Bottom to Top) ─────────────────────────────
-        left_start, left_end = edge_ranges["left"]
-        left_count = left_end - left_start
-        if left_count > 0:
-            slice_h = max(2, act_h / left_count)
-            left_strip = frame[ymin : ymax, xmin : xmin + dx]
-            for i in range(left_count):
-                idx = left_start + i
-                # Clockwise: start from bottom (y=act_h) to top (y=0)
-                t = (i + 0.5) / left_count
-                center_y = int(act_h - t * act_h)
-                y_start = max(0, int(center_y - slice_h * 0.8))
-                y_end = min(act_h, int(center_y + slice_h * 0.8 + 1))
-                window = left_strip[y_start:y_end, :]
-                raw_led_colors[idx] = self._sample_region_color(window)
-
-        # 2. Corner Smoothing (blend adjacent edge boundaries to eliminate harsh seams)
-        raw_led_colors = self._apply_corner_smoothing(raw_led_colors, edge_ranges)
-
-        # 3. Asymmetric Temporal Filtering (Fast Attack, Smooth Release)
-        if self.prev_led_colors is None or len(self.prev_led_colors) != total:
-            self.prev_led_colors = raw_led_colors.copy()
-            smoothed = raw_led_colors
+        # Extract RGB arrays from BGRA / BGR frame (OpenCV / MSS standard)
+        # B = frame[..., 0], G = frame[..., 1], R = frame[..., 2]
+        if frame.shape[-1] >= 3:
+            b_chan = frame[:, :, 0].astype(np.float32)
+            g_chan = frame[:, :, 1].astype(np.float32)
+            r_chan = frame[:, :, 2].astype(np.float32)
         else:
-            prev_lum = 0.2126 * self.prev_led_colors[:, 0] + 0.7152 * self.prev_led_colors[:, 1] + 0.0722 * self.prev_led_colors[:, 2]
-            target_lum = 0.2126 * raw_led_colors[:, 0] + 0.7152 * raw_led_colors[:, 1] + 0.0722 * raw_led_colors[:, 2]
+            return [(0, 0, 0)] * total, {"top": (0, 0, 0), "right": (0, 0, 0), "bottom": (0, 0, 0), "left": (0, 0, 0)}, (ymin, ymax, xmin, xmax)
 
-            # Vectorized attack vs release mask
-            is_attack = target_lum > prev_lum
-            rate = np.where(is_attack[:, None], self.attack_rate, self.release_rate)
-            smoothed = self.prev_led_colors * (1.0 - rate) + raw_led_colors * rate
-            self.prev_led_colors = smoothed.copy()
+        # Precompute angles for each ball
+        angles = []
+        for bx, by, _ in ball_info:
+            dx = bx - cx
+            dy = by - cy
+            angles.append(math.atan2(dy, dx))
 
-        # Format output
-        final_leds: List[Tuple[int, int, int]] = []
+        # Radial step percentages (outer radius towards perimeter)
+        r_steps = np.linspace(self.radial_start, self.radial_end, self.num_radial_steps)
+        # Weight points nearer to perimeter slightly higher: w(r) = r^1.2
+        r_weights = np.power(r_steps, 1.2)
+        r_weights /= np.sum(r_weights)
+
+        raw_colors = np.zeros((total, 3), dtype=np.float32)
+
+        for i, (bx, by, edge_name) in enumerate(ball_info):
+            theta = angles[i]
+
+            # Angular width of this ball's sector
+            prev_theta = angles[(i - 1 + total) % total]
+            next_theta = angles[(i + 1) % total]
+            diff1 = abs(math.atan2(math.sin(theta - prev_theta), math.cos(theta - prev_theta)))
+            diff2 = abs(math.atan2(math.sin(next_theta - theta), math.cos(next_theta - theta)))
+            d_theta = max(0.005, (diff1 + diff2) / 2.0)
+
+            # Sub-angles across the ball's angular wedge
+            sub_angles = [
+                theta - 0.25 * d_theta,
+                theta,
+                theta + 0.25 * d_theta,
+            ]
+
+            ball_r = 0.0
+            ball_g = 0.0
+            ball_b = 0.0
+            total_weight = 0.0
+
+            for ang in sub_angles:
+                cos_a = math.cos(ang)
+                sin_a = math.sin(ang)
+
+                # Distance from center to active perimeter boundary along angle ang
+                denom_x = abs(cos_a) + 1e-6
+                denom_y = abs(sin_a) + 1e-6
+                t_bound = min(half_w / denom_x, half_h / denom_y)
+
+                for r_frac, w_val in zip(r_steps, r_weights):
+                    sx = int(round(cx + r_frac * t_bound * cos_a))
+                    sy = int(round(cy + r_frac * t_bound * sin_a))
+
+                    # Clamp strictly inside active video bounds and frame bounds
+                    sx = max(xmin, min(xmax - 1, min(frame_w - 1, max(0, sx))))
+                    sy = max(ymin, min(ymax - 1, min(frame_h - 1, max(0, sy))))
+
+                    ball_r += r_chan[sy, sx] * w_val
+                    ball_g += g_chan[sy, sx] * w_val
+                    ball_b += b_chan[sy, sx] * w_val
+                    total_weight += w_val
+
+            if total_weight > 0.0:
+                raw_colors[i, 0] = ball_r / total_weight
+                raw_colors[i, 1] = ball_g / total_weight
+                raw_colors[i, 2] = ball_b / total_weight
+
+        # 4. Asymmetric Temporal Filtering (fast attack, smooth release)
+        if self.prev_led_colors is None or len(self.prev_led_colors) != total:
+            smoothed_colors = raw_colors.copy()
+        else:
+            smoothed_colors = np.zeros_like(raw_colors)
+            for i in range(total):
+                for c in range(3):
+                    target = raw_colors[i, c]
+                    current = self.prev_led_colors[i, c]
+                    if target > current:
+                        smoothed_colors[i, c] = current + self.attack_rate * (target - current)
+                    else:
+                        smoothed_colors[i, c] = current + self.release_rate * (target - current)
+
+        self.prev_led_colors = smoothed_colors.copy()
+
+        # 5. Format per-LED RGB tuples
+        per_led_rgb: List[Tuple[int, int, int]] = []
         for i in range(total):
-            r = int(np.clip(smoothed[i, 0], 0, 255))
-            g = int(np.clip(smoothed[i, 1], 0, 255))
-            b = int(np.clip(smoothed[i, 2], 0, 255))
-            final_leds.append((r, g, b))
+            r = int(np.clip(round(smoothed_colors[i, 0]), 0, 255))
+            g = int(np.clip(round(smoothed_colors[i, 1]), 0, 255))
+            b = int(np.clip(round(smoothed_colors[i, 2]), 0, 255))
+            per_led_rgb.append((r, g, b))
 
-        # Compute clean edge averages
+        # 6. Edge averages
+        edge_colors: Dict[str, List[Tuple[int, int, int]]] = {
+            "top": [], "right": [], "bottom": [], "left": []
+        }
+        for i, (_, _, edge_name) in enumerate(ball_info):
+            if i < len(per_led_rgb):
+                edge_colors[edge_name].append(per_led_rgb[i])
+
         edge_averages: Dict[str, Tuple[int, int, int]] = {}
-        for edge_name, (s, e) in edge_ranges.items():
-            if e > s:
-                edge_slice = smoothed[s:e]
-                avg_r = int(np.clip(np.mean(edge_slice[:, 0]), 0, 255))
-                avg_g = int(np.clip(np.mean(edge_slice[:, 1]), 0, 255))
-                avg_b = int(np.clip(np.mean(edge_slice[:, 2]), 0, 255))
+        for edge_name, clist in edge_colors.items():
+            if clist:
+                avg_r = int(np.mean([c[0] for c in clist]))
+                avg_g = int(np.mean([c[1] for c in clist]))
+                avg_b = int(np.mean([c[2] for c in clist]))
                 edge_averages[edge_name] = (avg_r, avg_g, avg_b)
             else:
                 edge_averages[edge_name] = (0, 0, 0)
 
-        return final_leds, edge_averages, (ymin, ymax, xmin, xmax)
-
-    def _apply_corner_smoothing(self, colors: np.ndarray, ranges: Dict[str, Tuple[int, int]], corner_radius: int = 3) -> np.ndarray:
-        """
-        Blends colors smoothly at the 4 corner joints of the perimeter.
-        """
-        edges = ["top", "right", "bottom", "left"]
-        num_edges = len(edges)
-        res = colors.copy()
-
-        for idx, edge in enumerate(edges):
-            next_edge = edges[(idx + 1) % num_edges]
-            s1, e1 = ranges[edge]
-            s2, e2 = ranges[next_edge]
-            if (e1 - s1) < 2 or (e2 - s2) < 2:
-                continue
-
-            # Joint is between e1 - 1 and s2
-            # Blend the last corner_radius LEDs of edge 1 with the first corner_radius LEDs of edge 2
-            k = min(corner_radius, (e1 - s1) // 2, (e2 - s2) // 2)
-            c1 = colors[e1 - 1]
-            c2 = colors[s2]
-            corner_mid = 0.5 * c1 + 0.5 * c2
-
-            for step in range(k):
-                weight = float(step + 1) / float(k + 1)  # 0.25, 0.5, 0.75
-                # Edge 1 end fades toward corner_mid
-                idx1 = e1 - 1 - (k - 1 - step)
-                res[idx1] = colors[idx1] * (1.0 - 0.4 * weight) + corner_mid * (0.4 * weight)
-                # Edge 2 start fades from corner_mid
-                idx2 = s2 + step
-                res[idx2] = colors[idx2] * (1.0 - 0.4 * (1.0 - weight)) + corner_mid * (0.4 * (1.0 - weight))
-
-        return res
+        return per_led_rgb, edge_averages, (ymin, ymax, xmin, xmax)

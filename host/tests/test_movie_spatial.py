@@ -142,18 +142,45 @@ class TestMovieSpatialSampler(unittest.TestCase):
         self.assertGreater(edges["left"][2], 200)
         self.assertGreater(edges["right"][2], 200)
 
-    def test_corner_smoothing(self):
-        """Corner joint between Top and Right should smoothly interpolate and not create harsh seams."""
+    def test_user_reported_scenario_top_red_topleft_yellow_left_yellow(self):
+        """
+        User scenario:
+        - Top is Red
+        - Left is Yellow
+        - Left-Top corner is Yellow
+        - Bottom and Right are Dark
+        Radial Angle Sampler must correctly resolve Yellow in corner and left, Red on top, Black on right/bottom.
+        """
         frame = self._create_frame()
-        # Top half red, bottom half blue
-        frame[: self.height // 2, :, 2] = 255  # Red
-        frame[self.height // 2 :, :, 0] = 255  # Blue
+        # Top region is red (BGRA: B=0, G=0, R=255)
+        frame[0 : self.height // 3, :, 2] = 255
+        # Left region is yellow (BGRA: B=0, G=255, R=255)
+        frame[:, 0 : self.width // 4, 1] = 255
+        frame[:, 0 : self.width // 4, 2] = 255
 
         leds, edges, bounds = self.sampler.sample_perimeter(frame)
-        # Check Top edge end (LED 98, 99) and Right edge start (LED 100, 101)
-        # Colors should transition gracefully
-        self.assertGreater(leds[95][0], 200)  # Solid red inside top
-        self.assertGreater(leds[105][0], 100) # Still in red upper right
+
+        # Top-mid LED (around index 50): should be Red (R > 200, G < 50, B < 50)
+        self.assertGreater(leds[50][0], 200)
+        self.assertLess(leds[50][1], 50)
+        self.assertLess(leds[50][2], 50)
+
+        # Left-Top corner (LED 0 and LED 299): should be Yellow (R > 200, G > 180)
+        self.assertGreater(leds[0][0], 200)
+        self.assertGreater(leds[0][1], 180)
+        self.assertGreater(leds[299][0], 200)
+        self.assertGreater(leds[299][1], 180)
+
+        # Left-mid LED (around index 275): should be Yellow (R > 200, G > 180)
+        self.assertGreater(leds[275][0], 200)
+        self.assertGreater(leds[275][1], 180)
+
+        # Right-mid LED (around index 125): should be Black (0, 0, 0)
+        self.assertEqual(leds[125], (0, 0, 0))
+
+        # Bottom-mid LED (around index 200): should be Black (0, 0, 0)
+        self.assertEqual(leds[200], (0, 0, 0))
+
 
 
 class TestLightingEngineMovieMode(unittest.TestCase):

@@ -66,7 +66,9 @@ interface LightingStore {
   setMovieLayout: (layout: Partial<MovieLayout>) => void;
   setMovieMusicSync: (enabled: boolean) => void;
   setMovieSamplingThickness: (thickness: number) => void;
+  setMovieMonitor: (monitorIndex: number) => void;
   addMusicMapping: (instrument?: MusicInstrument) => void;
+
   updateMusicMapping: (id: string, updates: Partial<MusicMapping>) => void;
   deleteMusicMapping: (id: string) => void;
   applyMusicPreset: (presetName: 'default_3_band' | 'party' | 'full_band') => void;
@@ -164,6 +166,13 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
     lightingService.setMovieLayout(newLayout);
     set({ movieLayout: newLayout });
   },
+
+  setMovieMonitor: (monitorIndex) => {
+    const newSettings = { ...get().movieSettings, monitor_index: monitorIndex };
+    lightingService.setMovieMonitor(monitorIndex);
+    set({ movieSettings: newSettings });
+  },
+
 
   addMusicMapping: (instrument = 'bass') => {
     const mappings = [...get().musicMappings];

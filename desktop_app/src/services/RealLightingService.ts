@@ -273,6 +273,11 @@ export class RealLightingService implements ILightingService {
     this.sendCommand('set_movie_settings', settings);
   }
 
+  async setMovieMonitor(monitorIndex: number): Promise<void> {
+    this.sendCommand('set_movie_monitor', { monitor_index: monitorIndex });
+  }
+
+
   async restartAll(): Promise<boolean> {
     this.sendCommand('restart_all', {});
     return true;

@@ -37,13 +37,20 @@ class DevLightsAPI:
             active_transport = self.engine.transport.__class__.__name__ if self.engine.transport else "none"
             connected = self.engine.transport.is_connected() if self.engine.transport else False
 
+        movie_settings = self.app_state.get_movie_settings() if hasattr(self.app_state, "get_movie_settings") else {}
+        try:
+            from analyzers.screen_analyzer import ScreenAnalyzer
+            movie_settings["available_monitors"] = ScreenAnalyzer.get_available_monitors()
+        except Exception:
+            movie_settings["available_monitors"] = []
+
         state_msg = {
             "version": 1,
             "type": "lighting_state",
             "payload": {
                 "mode": self.app_state.mode,
                 "output_mode": self.app_state.output_mode,
-                        "power_on": self.app_state.power_on,
+                "power_on": self.app_state.power_on,
                 "color": {
                     "r": self.engine.priority_manager.base_state.r,
                     "g": self.engine.priority_manager.base_state.g,
@@ -58,7 +65,7 @@ class DevLightsAPI:
                 "music_settings": self.app_state.settings.get("music", {}),
                 "music_mappings": self.app_state.get_music_mappings(),
                 "response_mode": self.app_state.get_music_response_mode(),
-                "movie_settings": self.app_state.get_movie_settings() if hasattr(self.app_state, "get_movie_settings") else {},
+                "movie_settings": movie_settings,
                 "movie_layout": self.app_state.get_movie_layout().to_dict() if hasattr(self.app_state, "get_movie_layout") else {},
                 "led_count": getattr(self.app_state, "led_count", 300),
                 "audio_telemetry": getattr(self.engine, "latest_music_analysis", None).to_dict() if getattr(self.engine, "latest_music_analysis", None) else {}
@@ -202,6 +209,30 @@ class DevLightsAPI:
                     logger.info("Movie settings updated")
                     self.analyzer_manager.check_state()
                     await self.broadcast_state()
+
+            elif msg_type == "get_monitors":
+                try:
+                    from analyzers.screen_analyzer import ScreenAnalyzer
+                    monitors = ScreenAnalyzer.get_available_monitors()
+                except Exception:
+                    monitors = []
+                resp = {
+                    "version": 1,
+                    "type": "available_monitors",
+                    "payload": {"monitors": monitors}
+                }
+                await websocket.send(json.dumps(resp))
+
+            elif msg_type == "set_movie_monitor":
+                idx = int(payload.get("monitor_index", payload.get("id", 1)))
+                if hasattr(self.app_state, "set_movie_monitor"):
+                    self.app_state.set_movie_monitor(idx)
+                else:
+                    self.app_state.settings.setdefault("movie", {})["monitor_index"] = idx
+                    self.app_state.save()
+                logger.info(f"Movie monitor set to {idx}")
+                await self.broadcast_state()
+
 
             elif msg_type == "set_brightness":
                 # Expects 0.0 to 1.0

@@ -64,12 +64,15 @@ export interface MovieSettings {
   left?: number;
   sampling_thickness?: number;
   clockwise?: boolean;
+  monitor_index?: number;
+  available_monitors?: Array<{ id: number; name: string; width: number; height: number; left: number; top: number }>;
   sync_music?: boolean;
   smoothing?: number;
   brightness_limit?: number;
   min_music_brightness?: number;
   max_music_brightness?: number;
 }
+
 
 export interface LightingState {
   mode: LightingMode;

@@ -4,7 +4,9 @@ import time
 import threading
 import sys
 import logging
+from typing import List, Dict, Any, Tuple, Optional
 from .color_extractor import ColorExtractor
+
 try:
     from .movie_spatial_sampler import MovieSpatialSampler
 except ImportError:
@@ -74,31 +76,65 @@ class ScreenAnalyzer:
             self.sct = None
         logger.info("Screen Analyzer stopped.")
 
-    def _capture_loop(self):
+    @staticmethod
+    def get_available_monitors() -> List[Dict[str, Any]]:
+        """
+        Returns a list of connected physical displays.
+        Index 1 is typically the primary display; index 0 is the combined virtual desktop.
+        """
+        results = []
         try:
-            monitors = self.sct.monitors
-            monitor = monitors[1] if len(monitors) > 1 else monitors[0]
-            bbox = {
-                "top": monitor["top"],
-                "left": monitor["left"],
-                "width": monitor["width"],
-                "height": monitor["height"]
-            }
-        except Exception:
-            # Fallback to primary display
-            bbox = self.sct.monitors[0] if self.sct and self.sct.monitors else {"top": 0, "left": 0, "width": 1920, "height": 1080}
+            with mss.MSS() as sct:
+                for idx, m in enumerate(sct.monitors):
+                    if idx == 0 and len(sct.monitors) > 1:
+                        continue  # Skip combined bounding box if multiple monitors exist
+                    results.append({
+                        "id": idx,
+                        "name": f"Display {idx} ({m['width']} × {m['height']})",
+                        "width": m["width"],
+                        "height": m["height"],
+                        "left": m["left"],
+                        "top": m["top"],
+                    })
+        except Exception as e:
+            logger.error(f"Failed to query monitors: {e}")
+        return results
 
+    def _capture_loop(self):
         target_frame_time = 1.0 / self.fps
 
         while self.running and self.sct:
             start_time = time.time()
             try:
-                # Capture the full display
+                # Dynamic monitor selection
+                target_monitor_idx = 1
+                app_state = getattr(self.lighting_engine, "app_state", None)
+                if app_state and hasattr(app_state, "settings"):
+                    movie_settings = app_state.settings.get("movie", {})
+                    target_monitor_idx = int(movie_settings.get("monitor_index", 1))
+
+                monitors = self.sct.monitors
+                if 1 <= target_monitor_idx < len(monitors):
+                    monitor = monitors[target_monitor_idx]
+                elif len(monitors) > 1:
+                    monitor = monitors[1]
+                elif len(monitors) > 0:
+                    monitor = monitors[0]
+                else:
+                    monitor = {"top": 0, "left": 0, "width": 1920, "height": 1080}
+
+                bbox = {
+                    "top": monitor["top"],
+                    "left": monitor["left"],
+                    "width": monitor["width"],
+                    "height": monitor["height"]
+                }
+
+                # Capture the display
                 sct_img = self.sct.grab(bbox)
                 img = np.array(sct_img)
 
                 is_movie_mode = False
-                app_state = getattr(self.lighting_engine, "app_state", None)
                 if app_state and getattr(app_state, "mode", None) == "movie":
                     is_movie_mode = True
 
@@ -108,11 +144,12 @@ class ScreenAnalyzer:
                         current_layout = app_state.get_movie_layout()
                         self.movie_sampler.update_layout(current_layout)
 
-                    # Downsample slightly for ultra-fast spatial sampling (~960x540)
-                    step = 2 if img.shape[0] >= 1080 else 1
+                    # Downsample slightly for ultra-fast spatial sampling (~480-540p)
+                    step = max(1, img.shape[0] // 480)
                     sample_frame = img[::step, ::step]
 
                     led_colors, edge_averages, active_bounds = self.movie_sampler.sample_perimeter(sample_frame)
+
 
                     # Forward spatial LED buffer to lighting engine
                     if hasattr(self.lighting_engine, "process_movie_frame"):

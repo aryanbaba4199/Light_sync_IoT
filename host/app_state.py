@@ -65,6 +65,7 @@ class AppState:
             "left": 50,
             "sampling_thickness": 0.10,
             "clockwise": True,
+            "monitor_index": 1,
             "sync_music": False,
             "smoothing": 0.70,
             "brightness_limit": 1.0,
@@ -77,6 +78,7 @@ class AppState:
                 dirty = True
         if dirty:
             self.save()
+
         
     def _ensure_music_mappings(self):
         from music_models import DEFAULT_3_BAND_PRESET
@@ -273,8 +275,15 @@ class AppState:
         self.save()
         return True
 
+    def set_movie_monitor(self, monitor_index: int) -> bool:
+        movie_conf = self.settings.setdefault("movie", {})
+        movie_conf["monitor_index"] = max(1, int(monitor_index))
+        self.save()
+        return True
+
     def get_movie_settings(self) -> dict:
         return self.settings.get("movie", {})
+
 
     def set_movie_settings(self, settings_dict: dict) -> Tuple[bool, Optional[str]]:
         try:

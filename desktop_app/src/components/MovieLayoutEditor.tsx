@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLightingStore } from '../store/lightingStore';
-import { Film, Music2, Sparkles, Sliders, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Film, Music2, Sparkles, Sliders, CheckCircle, AlertTriangle, Monitor, Compass } from 'lucide-react';
 
 export const MovieLayoutEditor: React.FC = () => {
   const {
@@ -10,6 +10,7 @@ export const MovieLayoutEditor: React.FC = () => {
     setMovieLayout,
     setMovieMusicSync,
     setMovieSamplingThickness,
+    setMovieMonitor,
   } = useLightingStore();
 
   const top = movieLayout?.top ?? 100;
@@ -19,6 +20,12 @@ export const MovieLayoutEditor: React.FC = () => {
   const total = top + right + bottom + left;
   const thickness = movieLayout?.sampling_thickness ?? 0.10;
   const syncMusic = movieSettings?.sync_music ?? false;
+  const currentMonitor = movieSettings?.monitor_index ?? 1;
+  const monitors = movieSettings?.available_monitors ?? [
+    { id: 1, name: 'Display 1 (Primary)', width: 2560, height: 1440, left: 0, top: 0 },
+    { id: 2, name: 'Display 2', width: 2560, height: 1080, left: -2560, top: 0 },
+    { id: 3, name: 'Display 3', width: 1920, height: 1080, left: -4480, top: -186 },
+  ];
 
   const handleEdgeChange = (edge: 'top' | 'right' | 'bottom' | 'left', val: number) => {
     const clamped = Math.max(0, Math.min(ledCount, val));
@@ -41,7 +48,7 @@ export const MovieLayoutEditor: React.FC = () => {
             <h2 className="text-xl font-bold tracking-wide">SPATIAL MOVIE MODE</h2>
           </div>
           <p className="caption text-dev-text-muted">
-            Configure physical LED perimeter placement around your TV or monitor for true spatial backlighting.
+            Center-Outward Radial Angle Perimeter Sampling: Projects rays from display center to every centimeter ball along the screen border.
           </p>
         </div>
 
@@ -54,25 +61,67 @@ export const MovieLayoutEditor: React.FC = () => {
             }`}
           >
             {isCountExact ? <CheckCircle size={13} /> : <AlertTriangle size={13} />}
-            {total} / {ledCount} Bulbs
+            {total} / {ledCount} Bulbs (1 bulb/cm)
           </span>
+        </div>
+      </div>
+
+      {/* Display Selector Bar */}
+      <div className="bg-dev-surface-elevated border border-dev-border-light rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <Monitor className="text-dev-primary shrink-0" size={18} />
+          <div>
+            <div className="text-sm font-bold text-dev-text">Capture Display</div>
+            <div className="text-[11px] text-dev-text-muted">
+              Select which physical screen your LED perimeter is installed around:
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <select
+            value={currentMonitor}
+            onChange={(e) => setMovieMonitor(parseInt(e.target.value) || 1)}
+            className="bg-dev-surface border border-dev-border text-dev-text rounded-lg px-3 py-1.5 text-xs font-mono font-semibold focus:outline-none focus:border-dev-primary cursor-pointer"
+          >
+            {monitors.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
       {/* Visual Perimeter Layout Card */}
       <div className="bg-dev-surface-elevated border border-dev-border-light rounded-2xl p-6 relative overflow-hidden">
         <div className="text-xs font-bold uppercase tracking-wider text-dev-text-secondary mb-4 flex items-center justify-between">
-          <span>Perimeter Geometry Preview</span>
-          <span className="text-[11px] text-dev-text-muted font-mono font-normal">Clockwise Direction</span>
+          <span className="flex items-center gap-1.5">
+            <Compass size={14} className="text-dev-primary" />
+            Radial Angle Perimeter Preview
+          </span>
+          <span className="text-[11px] text-dev-text-muted font-mono font-normal">
+            Center-to-Bulb Rays (Clockwise)
+          </span>
         </div>
 
         {/* The Monitor / TV representation */}
-        <div className="relative max-w-lg mx-auto aspect-[16/9] bg-black/80 rounded-xl border-2 border-dev-border p-4 flex flex-col justify-between shadow-2xl">
-          {/* Ambient Screen Glow in center */}
-          <div className="absolute inset-0 bg-gradient-to-tr from-dev-primary/5 via-blue-500/5 to-purple-500/5 rounded-xl pointer-events-none" />
+        <div className="relative max-w-lg mx-auto aspect-[16/9] bg-black/90 rounded-xl border-2 border-dev-border p-4 flex flex-col justify-between shadow-2xl overflow-hidden">
+          {/* Radial Rays SVG from Center */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-25">
+            <line x1="50%" y1="50%" x2="0%" y2="0%" stroke="#3B82F6" strokeWidth="1.5" strokeDasharray="3 3" />
+            <line x1="50%" y1="50%" x2="100%" y2="0%" stroke="#3B82F6" strokeWidth="1.5" strokeDasharray="3 3" />
+            <line x1="50%" y1="50%" x2="100%" y2="100%" stroke="#3B82F6" strokeWidth="1.5" strokeDasharray="3 3" />
+            <line x1="50%" y1="50%" x2="0%" y2="100%" stroke="#3B82F6" strokeWidth="1.5" strokeDasharray="3 3" />
+            <line x1="50%" y1="50%" x2="50%" y2="0%" stroke="#3B82F6" strokeWidth="1" strokeDasharray="2 2" />
+            <line x1="50%" y1="50%" x2="100%" y2="50%" stroke="#3B82F6" strokeWidth="1" strokeDasharray="2 2" />
+            <line x1="50%" y1="50%" x2="50%" y2="100%" stroke="#3B82F6" strokeWidth="1" strokeDasharray="2 2" />
+            <line x1="50%" y1="50%" x2="0%" y2="50%" stroke="#3B82F6" strokeWidth="1" strokeDasharray="2 2" />
+            <circle cx="50%" cy="50%" r="5" fill="#3B82F6" />
+          </svg>
 
           {/* TOP EDGE BAR */}
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center relative z-10">
             <div className="flex items-center gap-2 bg-dev-surface-pressed/90 border border-dev-border px-3 py-1 rounded-full text-xs font-bold shadow">
               <span className="text-dev-text-secondary uppercase tracking-wider">Top</span>
               <span className="text-dev-primary font-mono">{top} bulbs</span>
@@ -81,7 +130,7 @@ export const MovieLayoutEditor: React.FC = () => {
           </div>
 
           {/* MIDDLE ROW (LEFT EDGE & RIGHT EDGE) */}
-          <div className="flex items-center justify-between my-auto px-2">
+          <div className="flex items-center justify-between my-auto px-2 relative z-10">
             {/* LEFT EDGE BAR */}
             <div className="flex items-center gap-2">
               <div className="h-28 w-1.5 bg-gradient-to-b from-dev-primary/40 via-dev-primary to-dev-primary/40 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
@@ -92,13 +141,13 @@ export const MovieLayoutEditor: React.FC = () => {
             </div>
 
             {/* SCREEN CENTER CONTENT GRAPHIC */}
-            <div className="text-center pointer-events-none opacity-80">
-              <Film className="mx-auto mb-1 text-dev-text-muted" size={28} />
-              <span className="text-[11px] font-medium tracking-wide uppercase text-dev-text-muted">
-                Spatial Video Content
+            <div className="text-center pointer-events-none bg-black/60 backdrop-blur-sm px-3 py-2 rounded-xl border border-dev-border/50 shadow">
+              <div className="w-2.5 h-2.5 rounded-full bg-dev-primary mx-auto mb-1 shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
+              <span className="text-[11px] font-bold tracking-wide uppercase text-dev-text">
+                Center (cx, cy)
               </span>
-              <div className="text-[10px] text-dev-text-muted/60 mt-0.5">
-                Each edge independently sampled
+              <div className="text-[10px] text-dev-text-muted mt-0.5">
+                Angles project to each cm ball
               </div>
             </div>
 
@@ -113,7 +162,7 @@ export const MovieLayoutEditor: React.FC = () => {
           </div>
 
           {/* BOTTOM EDGE BAR */}
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center relative z-10">
             <div className="w-full h-1.5 mb-2 bg-gradient-to-r from-dev-primary/40 via-dev-primary to-dev-primary/40 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
             <div className="flex items-center gap-2 bg-dev-surface-pressed/90 border border-dev-border px-3 py-1 rounded-full text-xs font-bold shadow">
               <span className="text-dev-text-secondary uppercase tracking-wider">Bottom</span>
@@ -200,24 +249,24 @@ export const MovieLayoutEditor: React.FC = () => {
 
       {/* Sampling Depth & Sync Music Settings */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Sampling Thickness */}
+        {/* Radial Ray Sampling Depth */}
         <div className="bg-dev-surface-elevated border border-dev-border-light rounded-xl p-5">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Sliders size={16} className="text-dev-primary" />
-              <label className="text-sm font-bold text-dev-text">Edge Sampling Depth</label>
+              <label className="text-sm font-bold text-dev-text">Radial Ray Depth</label>
             </div>
             <span className="text-xs font-mono font-bold text-dev-primary">
               {Math.round(thickness * 100)}%
             </span>
           </div>
           <p className="caption text-dev-text-muted mb-4">
-            Percentage of active screen width/height sampled along each perimeter edge.
+            Percentage of active radius sampled along each angle from center out towards perimeter balls.
           </p>
           <input
             type="range"
             min="4"
-            max="25"
+            max="30"
             step="1"
             value={Math.round(thickness * 100)}
             onChange={(e) => setMovieSamplingThickness(parseInt(e.target.value) / 100)}
@@ -260,16 +309,17 @@ export const MovieLayoutEditor: React.FC = () => {
             </div>
 
             <p className="caption text-dev-text-muted mt-1 leading-relaxed">
-              Sync Music uses music intensity to modulate brightness while video continues controlling spatial color.
+              Sync Music uses music density to modulate brightness while video strictly controls spatial colors.
             </p>
           </div>
 
           <div className="mt-3 pt-3 border-t border-dev-border-light/60 flex items-center gap-2 text-[11px] text-dev-text-muted">
             <Sparkles size={12} className="text-dev-primary shrink-0" />
-            <span>Cinematic response: loud beats brighten, quiet scenes dim smoothly without pumping.</span>
+            <span>Cinematic response: loud beats brighten, quiet scenes dim smoothly without color shift.</span>
           </div>
         </div>
       </div>
     </div>
   );
 };
+
