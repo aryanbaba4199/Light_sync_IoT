@@ -76,8 +76,8 @@ class LightingEngine:
 
     def _render_loop(self):
         # Run rendering independently from input ingestion.
-        # While true 60Hz depends on the OS and locks, this targets 16.6ms intervals.
-        target_fps = 60
+        # Lowered to 15 FPS to prevent WS2812B data line corruption on 3.3V logic without a level shifter
+        target_fps = 15
         frame_time = 1.0 / target_fps
         
         while self.running:
@@ -90,16 +90,20 @@ class LightingEngine:
                 target_b = target_state.b
                 target_bright = target_state.brightness
             
-            # Apply smoothing outside the lock
+            # Apply smoothing and mode limits outside the lock
             smooth = self.smoothing_factor
+            mode_limit = 1.0
             if self.app_state:
                 settings = self.app_state.get_current_settings()
                 smooth = settings.get("smoothing", self.smoothing_factor)
+                mode_limit = settings.get("brightness_limit", 1.0)
+                
+            final_target_bright = target_bright * mode_limit
                 
             self.render_state.r = int((target_r * (1 - smooth)) + (self.render_state.r * smooth))
             self.render_state.g = int((target_g * (1 - smooth)) + (self.render_state.g * smooth))
             self.render_state.b = int((target_b * (1 - smooth)) + (self.render_state.b * smooth))
-            self.render_state.brightness = int((target_bright * (1 - smooth)) + (self.render_state.brightness * smooth))
+            self.render_state.brightness = int((final_target_bright * (1 - smooth)) + (self.render_state.brightness * smooth))
             self.render_state.validate()
 
             transport_start = time.time()

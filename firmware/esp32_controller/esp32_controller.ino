@@ -7,42 +7,43 @@ LedController ledController;
 
 void setup() {
   Serial.begin(115200);
-  delay(1000); // Power-up safety delay
+  delay(1000); 
   
   pinMode(ONBOARD_LED, OUTPUT);
-  digitalWrite(ONBOARD_LED, HIGH); // Turn on blue LED to indicate power/status
+  digitalWrite(ONBOARD_LED, HIGH); 
   
   Serial.println("\nDEVLIGHTS ESP32");
-  Serial.println("----------------");
-  Serial.println("Firmware: esp32_controller");
-  Serial.println("Serial: OK");
+  
+  FastLED.setDither(0);
   
   ledController.begin();
-  
-  Serial.println("LED controller: OK");
-  Serial.println("Waiting for commands...");
 }
 
-#define DEV_DEBUG 1
-
 void loop() {
-  if (Serial.available() >= 5) {
-    uint8_t buffer[5];
-    // Peek at first byte to see if it's the magic byte
+  bool updated = false;
+  
+  while (Serial.available() > 0) {
     if (Serial.peek() == 0x55) {
-      Serial.readBytes(buffer, 5);
-      if (ledController.parseBinaryPayload(buffer, 5)) {
-#if DEV_DEBUG
-        Serial.println("PACKET OK");
-        Serial.print("R="); Serial.print(buffer[1]);
-        Serial.print(" G="); Serial.print(buffer[2]);
-        Serial.print(" B="); Serial.print(buffer[3]);
-        Serial.print(" BRIGHTNESS="); Serial.println(buffer[4]);
-#endif
+      if (Serial.available() >= 5) {
+        uint8_t buffer[5];
+        Serial.readBytes(buffer, 5);
+        if (buffer[0] == 0x55) {
+           ledController.applyState(buffer[1], buffer[2], buffer[3], buffer[4], false);
+           updated = true;
+        }
+      } else {
+        break; 
       }
     } else {
-      // Discard invalid bytes
-      Serial.read();
+      Serial.read(); 
     }
+  }
+  
+  if (updated) {
+    FastLED.show();
+    // HARDWARE FIX: Force a 15ms delay after every frame to allow the 3.3V 
+    // electrical data line to completely discharge and latch. This prevents 
+    // high-frequency static/color corruption down long LED strips!
+    delay(15);
   }
 }

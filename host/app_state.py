@@ -7,6 +7,7 @@ class AppMode:
     DEVELOPER = "developer"
     GAME = "game"
     CUSTOM = "custom"
+    OFF = "off"
 
 class AppState:
     def __init__(self, config_file="config.json"):
@@ -20,7 +21,8 @@ class AppState:
             "music": {"smoothing": 0.5, "brightness_limit": 1.0},
             "developer": {"smoothing": 0.8, "brightness_limit": 0.7},
             "game": {"smoothing": 0.2, "brightness_limit": 1.0}, # Lower smoothing for faster response
-            "custom": {"r": 255, "g": 255, "b": 255, "brightness": 1.0, "smoothing": 0.5}
+            "custom": {"r": 255, "g": 255, "b": 255, "brightness": 1.0, "smoothing": 0.5},
+            "off": {"smoothing": 0.5, "brightness_limit": 0.0}
         }
         self.load()
         
