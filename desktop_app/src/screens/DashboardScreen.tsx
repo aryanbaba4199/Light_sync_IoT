@@ -1,5 +1,5 @@
 import React from 'react';
-import { Film, Music, Gamepad2, Code, Sliders, MonitorPlay, Zap } from 'lucide-react';
+import { Film, Music, Gamepad2, Code, Sliders, MonitorPlay, Zap, Power } from 'lucide-react';
 import { useLightingStore } from '../store/lightingStore';
 import type { LightingMode } from '../types/lighting';
 import { VirtualStrip } from '../components/VirtualStrip';
@@ -34,7 +34,20 @@ export const DashboardScreen = () => {
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <header className="mb-8 flex justify-between items-end">
-        <h1 className="text-2xl font-bold tracking-wide">AMBIENT NOW</h1>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setMode(mode === 'off' ? 'movie' : 'off')}
+            className={`p-2 rounded-full transition-colors ${
+              mode === 'off' 
+                ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20' 
+                : 'bg-green-500/10 text-green-500 hover:bg-green-500/20'
+            }`}
+            title={mode === 'off' ? "Turn On" : "Turn Off"}
+          >
+            <Power size={24} />
+          </button>
+          <h1 className="text-2xl font-bold tracking-wide">AMBIENT NOW</h1>
+        </div>
         
         {/* Output Selector */}
         <div className="flex bg-dev-surface-pressed rounded-lg p-1">
