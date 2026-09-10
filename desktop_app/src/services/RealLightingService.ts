@@ -136,6 +136,8 @@ export class RealLightingService implements ILightingService {
         musicSettings: p.music_settings,
         musicResponseMode: (p.response_mode || p.music_settings?.response_mode || 'flash') as any,
         musicMappings,
+        movieSettings: p.movie_settings,
+        movieLayout: p.movie_layout,
         ledCount: p.led_count ?? 300,
         virtualFrame: p.virtual_frame
       };
@@ -257,6 +259,18 @@ export class RealLightingService implements ILightingService {
 
   async setMusicResponseMode(mode: MusicResponseMode): Promise<void> {
     this.sendCommand('set_music_response_mode', { response_mode: mode });
+  }
+
+  async setMovieLayout(layout: any): Promise<void> {
+    this.sendCommand('set_movie_layout', { layout });
+  }
+
+  async setMovieMusicSync(enabled: boolean): Promise<void> {
+    this.sendCommand('set_movie_music_sync', { sync_music: enabled });
+  }
+
+  async setMovieSettings(settings: any): Promise<void> {
+    this.sendCommand('set_movie_settings', settings);
   }
 
   async restartAll(): Promise<boolean> {

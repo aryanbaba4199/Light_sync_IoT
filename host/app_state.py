@@ -17,11 +17,27 @@ class AppState:
         self.power_on = True
         
         from music_models import LED_COUNT, DEFAULT_3_BAND_PRESET, PRESETS, MusicMapping, validate_mapping
+        try:
+            from movie_models import MovieLayout
+        except ImportError:
+            from host.movie_models import MovieLayout
         self.led_count = LED_COUNT
-        
+
         # Default settings
         self.settings = {
-            "movie": {"smoothing": 0.8, "brightness_limit": 1.0},
+            "movie": {
+                "top": 100,
+                "right": 50,
+                "bottom": 100,
+                "left": 50,
+                "sampling_thickness": 0.10,
+                "clockwise": True,
+                "sync_music": False,
+                "smoothing": 0.70,
+                "brightness_limit": 1.0,
+                "min_music_brightness": 0.35,
+                "max_music_brightness": 1.00
+            },
             "music": {
                 "smoothing": 0.5, 
                 "brightness_limit": 1.0,
@@ -37,6 +53,30 @@ class AppState:
         }
         self.load()
         self._ensure_music_mappings()
+        self._ensure_movie_settings()
+
+    def _ensure_movie_settings(self):
+        movie_conf = self.settings.setdefault("movie", {})
+        dirty = False
+        defaults = {
+            "top": 100,
+            "right": 50,
+            "bottom": 100,
+            "left": 50,
+            "sampling_thickness": 0.10,
+            "clockwise": True,
+            "sync_music": False,
+            "smoothing": 0.70,
+            "brightness_limit": 1.0,
+            "min_music_brightness": 0.35,
+            "max_music_brightness": 1.00
+        }
+        for k, v in defaults.items():
+            if k not in movie_conf:
+                movie_conf[k] = v
+                dirty = True
+        if dirty:
+            self.save()
         
     def _ensure_music_mappings(self):
         from music_models import DEFAULT_3_BAND_PRESET
@@ -201,3 +241,55 @@ class AppState:
             
     def get_current_settings(self):
         return self.settings.get(self.mode, self.settings["movie"])
+
+    def get_movie_layout(self):
+        try:
+            from movie_models import MovieLayout
+        except ImportError:
+            from host.movie_models import MovieLayout
+        movie_conf = self.settings.get("movie", {})
+        return MovieLayout.from_dict(movie_conf)
+
+    def set_movie_layout(self, layout_dict: dict) -> Tuple[bool, Optional[str]]:
+        try:
+            from movie_models import MovieLayout
+        except ImportError:
+            from host.movie_models import MovieLayout
+        try:
+            layout = MovieLayout.from_dict(layout_dict)
+            ok, err = layout.validate(self.led_count)
+            if not ok:
+                return False, err
+            movie_conf = self.settings.setdefault("movie", {})
+            movie_conf.update(layout.to_dict())
+            self.save()
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
+    def set_movie_music_sync(self, sync_music: bool) -> bool:
+        movie_conf = self.settings.setdefault("movie", {})
+        movie_conf["sync_music"] = bool(sync_music)
+        self.save()
+        return True
+
+    def get_movie_settings(self) -> dict:
+        return self.settings.get("movie", {})
+
+    def set_movie_settings(self, settings_dict: dict) -> Tuple[bool, Optional[str]]:
+        try:
+            from movie_models import MovieSettings
+        except ImportError:
+            from host.movie_models import MovieSettings
+        try:
+            movie_conf = self.settings.setdefault("movie", {})
+            movie_conf.update(settings_dict)
+            # Re-validate layout
+            layout = self.get_movie_layout()
+            ok, err = layout.validate(self.led_count)
+            if not ok:
+                return False, err
+            self.save()
+            return True, None
+        except Exception as e:
+            return False, str(e)

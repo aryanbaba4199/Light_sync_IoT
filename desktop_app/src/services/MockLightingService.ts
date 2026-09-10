@@ -103,6 +103,27 @@ export class MockLightingService implements ILightingService {
     this.notifyState();
   }
 
+  async setMovieLayout(layout: any): Promise<void> {
+    this.state.movieLayout = layout;
+    this.notifyState();
+  }
+
+  async setMovieMusicSync(enabled: boolean): Promise<void> {
+    this.state.movieSettings = {
+      ...(this.state.movieSettings || {}),
+      sync_music: enabled
+    };
+    this.notifyState();
+  }
+
+  async setMovieSettings(settings: any): Promise<void> {
+    this.state.movieSettings = {
+      ...(this.state.movieSettings || {}),
+      ...settings
+    };
+    this.notifyState();
+  }
+
   async restartAll(): Promise<boolean> {
     console.log('[MockService] Restarted all');
     this.notifyState();

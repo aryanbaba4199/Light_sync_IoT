@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { LightingMode, RGBColor, TransportType, OutputMode, MusicMapping, MusicInstrument, MusicResponseMode } from '../types/lighting';
+import type { LightingMode, RGBColor, TransportType, OutputMode, MusicMapping, MusicInstrument, MusicResponseMode, MovieLayout, MovieSettings } from '../types/lighting';
 import { DEFAULT_LED_COUNT } from '../types/lighting';
 import { lightingService } from '../services';
 
@@ -45,6 +45,8 @@ interface LightingStore {
   musicSettings: any;
   musicResponseMode: MusicResponseMode;
   musicMappings: MusicMapping[];
+  movieLayout: MovieLayout;
+  movieSettings: MovieSettings;
   ledCount: number;
   validationWarnings: string[];
   setMusicColors: (bass?: RGBColor, mid?: RGBColor, treb?: RGBColor) => void;
@@ -61,6 +63,9 @@ interface LightingStore {
   setColor: (color: RGBColor) => void;
   setBrightness: (brightness: number) => void;
   setMusicResponseMode: (mode: MusicResponseMode) => void;
+  setMovieLayout: (layout: Partial<MovieLayout>) => void;
+  setMovieMusicSync: (enabled: boolean) => void;
+  setMovieSamplingThickness: (thickness: number) => void;
   addMusicMapping: (instrument?: MusicInstrument) => void;
   updateMusicMapping: (id: string, updates: Partial<MusicMapping>) => void;
   deleteMusicMapping: (id: string) => void;
@@ -87,6 +92,22 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
     { id: '2', instrument: 'vocal', color: { r: 0, g: 255, b: 0 }, startLed: 101, endLed: 200, sensitivity: 1.0, response: 'static', distribution: 'zone', enabled: true, seed: 102 },
     { id: '3', instrument: 'hihat', color: { r: 0, g: 0, b: 255 }, startLed: 201, endLed: 300, sensitivity: 1.0, response: 'static', distribution: 'zone', enabled: true, seed: 103 },
   ],
+  movieLayout: {
+    top: 100,
+    right: 50,
+    bottom: 100,
+    left: 50,
+    sampling_thickness: 0.10,
+    clockwise: true,
+    total_leds: 300
+  },
+  movieSettings: {
+    sync_music: false,
+    smoothing: 0.70,
+    brightness_limit: 1.0,
+    min_music_brightness: 0.35,
+    max_music_brightness: 1.00
+  },
   ledCount: DEFAULT_LED_COUNT,
   validationWarnings: [],
   analyzers: {},
@@ -123,6 +144,25 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
   setMusicResponseMode: (mode) => {
     lightingService.setMusicResponseMode(mode);
     set({ musicResponseMode: mode });
+  },
+
+  setMovieLayout: (updates) => {
+    const newLayout = { ...get().movieLayout, ...updates };
+    newLayout.total_leds = newLayout.top + newLayout.right + newLayout.bottom + newLayout.left;
+    lightingService.setMovieLayout(newLayout);
+    set({ movieLayout: newLayout });
+  },
+
+  setMovieMusicSync: (enabled) => {
+    const newSettings = { ...get().movieSettings, sync_music: enabled };
+    lightingService.setMovieMusicSync(enabled);
+    set({ movieSettings: newSettings });
+  },
+
+  setMovieSamplingThickness: (thickness) => {
+    const newLayout = { ...get().movieLayout, sampling_thickness: thickness };
+    lightingService.setMovieLayout(newLayout);
+    set({ movieLayout: newLayout });
   },
 
   addMusicMapping: (instrument = 'bass') => {
@@ -224,6 +264,8 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
         musicSettings: (state as any).musicSettings || get().musicSettings,
         musicResponseMode: state.musicResponseMode || (state as any).musicSettings?.response_mode || get().musicResponseMode,
         musicMappings: mappings,
+        movieLayout: state.movieLayout || get().movieLayout,
+        movieSettings: state.movieSettings || get().movieSettings,
         ledCount: state.ledCount || DEFAULT_LED_COUNT,
         validationWarnings: warnings,
         audioTelemetry: (state as any).audioTelemetry || get().audioTelemetry

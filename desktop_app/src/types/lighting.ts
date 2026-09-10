@@ -47,6 +47,30 @@ export interface MusicMapping {
   seed: number;
 }
 
+export interface MovieLayout {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+  sampling_thickness?: number;
+  clockwise?: boolean;
+  total_leds?: number;
+}
+
+export interface MovieSettings {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
+  sampling_thickness?: number;
+  clockwise?: boolean;
+  sync_music?: boolean;
+  smoothing?: number;
+  brightness_limit?: number;
+  min_music_brightness?: number;
+  max_music_brightness?: number;
+}
+
 export interface LightingState {
   mode: LightingMode;
   outputMode: OutputMode;
@@ -55,6 +79,8 @@ export interface LightingState {
   musicSettings?: any;
   musicResponseMode?: MusicResponseMode;
   musicMappings?: MusicMapping[];
+  movieSettings?: MovieSettings;
+  movieLayout?: MovieLayout;
   ledCount?: number;
   virtualFrame?: RGBColor[];
   brightness: number; // The user-facing target

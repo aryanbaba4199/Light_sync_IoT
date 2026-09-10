@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLightingStore } from '../store/lightingStore';
 import { LedStripPreview300 } from '../components/LedStripPreview300';
 import { MusicMappingEditor } from '../components/MusicMappingEditor';
+import { MovieLayoutEditor } from '../components/MovieLayoutEditor';
 
 export const ExperiencesScreen = () => {
   const { color, brightness, mode, setMode, setColor, setBrightness, restartAll } = useLightingStore();
@@ -97,7 +98,11 @@ export const ExperiencesScreen = () => {
           </div>
         )}
 
-        {(mode === 'movie' || mode === 'game' || mode === 'developer') && (
+        {mode === 'movie' && (
+          <MovieLayoutEditor />
+        )}
+
+        {(mode === 'game' || mode === 'developer') && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <h2 className="text-xl font-bold mb-2 uppercase">{mode} MODE ACTIVE</h2>
             <p className="caption">The lighting engine is actively controlling this experience.</p>

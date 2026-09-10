@@ -20,6 +20,9 @@ export interface ILightingService {
   deleteMusicMapping(id: string): Promise<void>;
   applyMusicPreset(presetName: string): Promise<void>;
   setMusicResponseMode(mode: MusicResponseMode): Promise<void>;
+  setMovieLayout(layout: any): Promise<void>;
+  setMovieMusicSync(enabled: boolean): Promise<void>;
+  setMovieSettings(settings: any): Promise<void>;
   restartAll(): Promise<boolean>;
   
   // Callbacks

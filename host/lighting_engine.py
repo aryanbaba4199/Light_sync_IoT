@@ -1,6 +1,7 @@
 import time
 import threading
-from typing import List, Tuple
+from typing import List, Tuple, Optional
+import numpy as np
 from lighting_state import LightingState, EventPriority
 from music_models import LED_COUNT, MusicAnalysis, MusicMapping
 from music_mapping_engine import MusicMappingEngine
@@ -39,6 +40,11 @@ class LightingEngine:
         self.music_mapping_engine = MusicMappingEngine(led_count=self.led_count)
         self.latest_music_analysis = MusicAnalysis()
         
+        # Movie Mode Spatial Frame Buffer
+        self.latest_movie_frame: Optional[List[Tuple[int, int, int]]] = None
+        self.latest_movie_edges: dict = {}
+        self.smooth_music_multiplier = 1.0
+
         self.smoothing_factor = 0.8
         self.render_state = LightingState()
         self.led_frame: List[Tuple[int, int, int]] = [(0, 0, 0)] * self.led_count
@@ -58,6 +64,12 @@ class LightingEngine:
         """Called by MusicAnalyzer when a new audio feature packet is computed."""
         with self.state_lock:
             self.latest_music_analysis = analysis
+
+    def process_movie_frame(self, led_colors: List[Tuple[int, int, int]], edge_stats: dict = None):
+        """Called by ScreenAnalyzer when a new spatial movie frame is sampled."""
+        with self.state_lock:
+            self.latest_movie_frame = led_colors
+            self.latest_movie_edges = edge_stats or {}
 
     def set_ambient_color(self, r: int, g: int, b: int):
         with self.state_lock:
@@ -86,6 +98,9 @@ class LightingEngine:
             self.render_state = LightingState()
             self.led_frame = [(0, 0, 0)] * self.led_count
             self.latest_music_analysis = MusicAnalysis()
+            self.latest_movie_frame = None
+            self.latest_movie_edges = {}
+            self.smooth_music_multiplier = 1.0
         if self.transport:
             try:
                 self.transport.send_zones([])
@@ -98,6 +113,61 @@ class LightingEngine:
         if self.transport:
             self.transport.disconnect()
 
+    def _extract_movie_zones(self, rendered_frame: List[Tuple[int, int, int]]) -> List[dict]:
+        """
+        Extracts up to 24-30 contiguous spatial zones for Protocol V2 hardware transmission
+        (ESP32 zone count limit is 42).
+        """
+        zones = []
+        frame_len = len(rendered_frame)
+        if frame_len == 0:
+            return zones
+
+        edge_subdivisions = {"top": 8, "right": 4, "bottom": 8, "left": 4}
+        edge_ranges = None
+        if self.app_state and hasattr(self.app_state, "get_movie_layout"):
+            layout = self.app_state.get_movie_layout()
+            edge_ranges = layout.get_edge_ranges()
+
+        if edge_ranges:
+            for edge_name, max_subs in edge_subdivisions.items():
+                s_edge, e_edge = edge_ranges.get(edge_name, (0, 0))
+                edge_len = e_edge - s_edge
+                if edge_len <= 0 or s_edge >= frame_len:
+                    continue
+
+                actual_end = min(frame_len, e_edge)
+                edge_len = actual_end - s_edge
+                num_subs = max(1, min(max_subs, edge_len))
+                chunk_size = edge_len / num_subs
+
+                for k in range(num_subs):
+                    zs = s_edge + int(k * chunk_size)
+                    ze = s_edge + int((k + 1) * chunk_size) - 1
+                    ze = max(zs, min(actual_end - 1, ze))
+                    slice_colors = rendered_frame[zs : ze + 1]
+                    if slice_colors:
+                        zr = int(np.mean([c[0] for c in slice_colors]))
+                        zg = int(np.mean([c[1] for c in slice_colors]))
+                        zb = int(np.mean([c[2] for c in slice_colors]))
+                    else:
+                        zr, zg, zb = 0, 0, 0
+                    zones.append({"start": zs, "end": ze, "r": zr, "g": zg, "b": zb})
+        else:
+            # Fallback: 24 uniform chunks across the frame
+            num_chunks = min(24, frame_len)
+            chunk_size = frame_len / num_chunks
+            for k in range(num_chunks):
+                zs = int(k * chunk_size)
+                ze = min(frame_len - 1, int((k + 1) * chunk_size) - 1)
+                slice_colors = rendered_frame[zs : ze + 1]
+                zr = int(np.mean([c[0] for c in slice_colors]))
+                zg = int(np.mean([c[1] for c in slice_colors]))
+                zb = int(np.mean([c[2] for c in slice_colors]))
+                zones.append({"start": zs, "end": ze, "r": zr, "g": zg, "b": zb})
+
+        return zones
+
     def _render_loop(self):
         target_fps = 30
         frame_time = 1.0 / target_fps
@@ -107,7 +177,6 @@ class LightingEngine:
             start_time = time.time()
             
             # MACOS SLEEP DETECTION:
-            # If the loop pauses for more than 3 seconds, the OS went to sleep
             if start_time - last_wake_time > 3.0:
                 print("WOKE FROM SLEEP! Reconnecting transport...")
                 if self.transport:
@@ -123,6 +192,7 @@ class LightingEngine:
                 user_bright = self.user_brightness
                 mode_int = self.mode_intensity
                 analysis = self.latest_music_analysis
+                movie_frame = self.latest_movie_frame
                 
                 if self.priority_manager.active_event:
                     mode_int = 1.0 
@@ -190,8 +260,71 @@ class LightingEngine:
                 self.render_state.b = avg_b
                 self.render_state.brightness = avg_bright
 
+            elif current_mode == "movie" and movie_frame is not None:
+                # MOVIE MODE: Spatial perimeter rendering with optional Music Sync
+                movie_settings = self.app_state.settings.get("movie", {}) if self.app_state else {}
+                sync_music = bool(movie_settings.get("sync_music", False))
+                min_bright = float(movie_settings.get("min_music_brightness", 0.35))
+                max_bright = float(movie_settings.get("max_music_brightness", 1.00))
+
+                if sync_music and analysis.music_gate_open:
+                    # Music density modulates intensity; colors are strictly from video
+                    density = 0.60 * analysis.overall + 0.25 * analysis.beat + 0.15 * analysis.bass_transient
+                    target_mult = min_bright + (max_bright - min_bright) * min(1.0, max(0.0, density))
+                    rate = 0.40 if target_mult > self.smooth_music_multiplier else 0.15
+                    self.smooth_music_multiplier = self.smooth_music_multiplier * (1.0 - rate) + target_mult * rate
+                    music_mult = self.smooth_music_multiplier
+                elif sync_music and not analysis.music_gate_open:
+                    # Quiet room / silence: settle to min_bright floor smoothly
+                    rate = 0.15
+                    self.smooth_music_multiplier = self.smooth_music_multiplier * (1.0 - rate) + min_bright * rate
+                    music_mult = self.smooth_music_multiplier
+                else:
+                    self.smooth_music_multiplier = 1.0
+                    music_mult = 1.0
+
+                if not power_on:
+                    final_scalar = 0.0
+                else:
+                    final_scalar = user_bright * mode_limit * music_mult
+
+                frame_len = len(movie_frame)
+                rendered_frame = []
+                for i in range(self.led_count):
+                    if i < frame_len:
+                        vr, vg, vb = movie_frame[i]
+                    else:
+                        vr, vg, vb = 0, 0, 0
+                    r = int(min(255, max(0, vr * final_scalar)))
+                    g = int(min(255, max(0, vg * final_scalar)))
+                    b = int(min(255, max(0, vb * final_scalar)))
+                    rendered_frame.append((r, g, b))
+                self.led_frame = rendered_frame
+
+                # Protocol V2: Extract compact perimeter zones for hardware
+                zones = self._extract_movie_zones(rendered_frame)
+
+                if self.transport:
+                    self.transport.send_zones(zones)
+                    self.transport.send_frame(self.led_frame)
+
+                # Representative color for virtual UI / status metrics
+                active_colors = [c for c in rendered_frame if c != (0, 0, 0)]
+                if active_colors:
+                    avg_r = int(sum(c[0] for c in active_colors) / len(active_colors))
+                    avg_g = int(sum(c[1] for c in active_colors) / len(active_colors))
+                    avg_b = int(sum(c[2] for c in active_colors) / len(active_colors))
+                    avg_bright = int(max(avg_r, avg_g, avg_b))
+                else:
+                    avg_r, avg_g, avg_b, avg_bright = 0, 0, 0, 0
+
+                self.render_state.r = avg_r
+                self.render_state.g = avg_g
+                self.render_state.b = avg_b
+                self.render_state.brightness = avg_bright
+
             else:
-                # SINGLE-STATE MODES (Custom, Movie, Game, Developer):
+                # SINGLE-STATE MODES (Custom, Game, Developer, or initial Movie fallback):
                 # Preserves 100% backward compatibility
                 if not power_on:
                     final_target_bright = 0.0
@@ -224,14 +357,19 @@ class LightingEngine:
 
             transport_ms = (time.time() - transport_start) * 1000.0
             
-            import diagnostics as diag
-            diag.diagnostics.record_frame()
-            diag.diagnostics.set_metric("transport_ms", transport_ms)
-            diag.diagnostics.set_metric("current_rgb", (self.render_state.r, self.render_state.g, self.render_state.b))
-            diag.diagnostics.set_metric("current_brightness", self.render_state.brightness)
-            if self.transport:
-                diag.diagnostics.set_metric("esp32_connected", self.transport.is_connected())
-                diag.diagnostics.set_metric("transport_type", self.transport.__class__.__name__)
+            try:
+                import diagnostics as diag
+                diag.diagnostics.record_frame()
+                diag.diagnostics.set_metric("transport_ms", transport_ms)
+                diag.diagnostics.set_metric("current_rgb", (self.render_state.r, self.render_state.g, self.render_state.b))
+                diag.diagnostics.set_metric("current_brightness", self.render_state.brightness)
+                if current_mode == "movie":
+                    diag.diagnostics.set_metric("movie_music_multiplier", round(self.smooth_music_multiplier, 3))
+                if self.transport:
+                    diag.diagnostics.set_metric("esp32_connected", self.transport.is_connected())
+                    diag.diagnostics.set_metric("transport_type", self.transport.__class__.__name__)
+            except Exception:
+                pass
                 
             elapsed = time.time() - start_time
             sleep_time = max(0, frame_time - elapsed)

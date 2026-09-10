@@ -15,11 +15,29 @@ class AnalyzerManager:
     def check_state(self):
         """
         Called when the app_state changes.
-        Starts or stops analyzers based on the active mode.
+        Starts or stops analyzers based on the active mode and settings.
         """
         mode = self.app_state.mode
         
-        if mode in [AppMode.MOVIE, AppMode.GAME]:
+        if mode == AppMode.MOVIE:
+            sync_music = False
+            if hasattr(self.app_state, "settings") and "movie" in self.app_state.settings:
+                sync_music = bool(self.app_state.settings["movie"].get("sync_music", False))
+
+            if not self.screen_analyzer.running:
+                logger.info("Mode is movie, starting Screen Analyzer")
+                self.screen_analyzer.start()
+
+            if sync_music:
+                if not self.music_analyzer.running:
+                    logger.info("Movie Mode with Sync Music enabled: starting Music Analyzer")
+                    self.music_analyzer.start()
+            else:
+                if self.music_analyzer.running:
+                    logger.info("Movie Mode with Sync Music disabled: stopping Music Analyzer")
+                    self.music_analyzer.stop()
+
+        elif mode == AppMode.GAME:
             if self.music_analyzer.running:
                 logger.info(f"Mode is {mode}, stopping Music Analyzer")
                 self.music_analyzer.stop()
@@ -35,7 +53,7 @@ class AnalyzerManager:
                 logger.info(f"Mode is {mode}, starting Music Analyzer")
                 self.music_analyzer.start()
                 
-        else: # custom or other
+        else: # custom, developer, or other
             if self.screen_analyzer.running:
                 logger.info(f"Mode is {mode}, stopping Screen Analyzer")
                 self.screen_analyzer.stop()

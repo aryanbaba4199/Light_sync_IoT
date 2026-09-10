@@ -58,6 +58,8 @@ class DevLightsAPI:
                 "music_settings": self.app_state.settings.get("music", {}),
                 "music_mappings": self.app_state.get_music_mappings(),
                 "response_mode": self.app_state.get_music_response_mode(),
+                "movie_settings": self.app_state.get_movie_settings() if hasattr(self.app_state, "get_movie_settings") else {},
+                "movie_layout": self.app_state.get_movie_layout().to_dict() if hasattr(self.app_state, "get_movie_layout") else {},
                 "led_count": getattr(self.app_state, "led_count", 300),
                 "audio_telemetry": getattr(self.engine, "latest_music_analysis", None).to_dict() if getattr(self.engine, "latest_music_analysis", None) else {}
             }
@@ -175,6 +177,31 @@ class DevLightsAPI:
                         await self._send_error(websocket, "INVALID_RESPONSE_MODE", f"Invalid response mode '{mode}'. Must be 'fade' or 'flash'")
                 else:
                     await self._send_error(websocket, "MISSING_PARAM", "Missing response_mode in payload")
+
+            elif msg_type == "set_movie_layout":
+                layout_data = payload.get("layout", payload)
+                ok, err = self.app_state.set_movie_layout(layout_data)
+                if not ok:
+                    await self._send_error(websocket, "VALIDATION_ERROR", err or "Invalid movie layout")
+                else:
+                    logger.info("Movie layout updated")
+                    await self.broadcast_state()
+
+            elif msg_type == "set_movie_music_sync":
+                sync = payload.get("sync_music", payload.get("enabled", False))
+                self.app_state.set_movie_music_sync(bool(sync))
+                logger.info(f"Movie music sync set to {sync}")
+                self.analyzer_manager.check_state()
+                await self.broadcast_state()
+
+            elif msg_type == "set_movie_settings":
+                ok, err = self.app_state.set_movie_settings(payload)
+                if not ok:
+                    await self._send_error(websocket, "VALIDATION_ERROR", err or "Invalid movie settings")
+                else:
+                    logger.info("Movie settings updated")
+                    self.analyzer_manager.check_state()
+                    await self.broadcast_state()
 
             elif msg_type == "set_brightness":
                 # Expects 0.0 to 1.0
@@ -296,6 +323,8 @@ class DevLightsAPI:
                         "music_settings": self.app_state.settings.get("music", {}),
                         "music_mappings": self.app_state.get_music_mappings(),
                         "response_mode": self.app_state.get_music_response_mode(),
+                        "movie_settings": self.app_state.get_movie_settings() if hasattr(self.app_state, "get_movie_settings") else {},
+                        "movie_layout": self.app_state.get_movie_layout().to_dict() if hasattr(self.app_state, "get_movie_layout") else {},
                         "led_count": getattr(self.app_state, "led_count", 300),
                         "audio_telemetry": getattr(self.engine, "latest_music_analysis", None).to_dict() if getattr(self.engine, "latest_music_analysis", None) else {}
                     }
