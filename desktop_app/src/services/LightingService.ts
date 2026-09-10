@@ -14,6 +14,7 @@ export interface ILightingService {
   setOutputMode(outputMode: string): Promise<void>;
   setBrightness(value: number): Promise<void>; // 0 to 100
   setColor(color: RGBColor): Promise<void>;
+  setMusicColors(bass?: RGBColor, mid?: RGBColor, treb?: RGBColor): Promise<void>;
   
   // Callbacks
   onStateChange(callback: (state: LightingState) => void): void;

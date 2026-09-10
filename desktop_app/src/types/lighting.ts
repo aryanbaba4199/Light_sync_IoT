@@ -20,6 +20,7 @@ export interface LightingState {
   outputMode: OutputMode;
   power_on: boolean;
   color: RGBColor;
+  musicSettings?: any;
   brightness: number; // The user-facing target
   renderBrightness?: number; // The smoothed output for visuals
   connected: boolean;
@@ -59,6 +60,7 @@ export interface DeveloperModeSettings {
 
 export interface CustomModeSettings {
   color: RGBColor;
+  musicSettings?: any;
   brightness: number;
   effect: 'Static' | 'Pulse' | 'Breathing';
 }

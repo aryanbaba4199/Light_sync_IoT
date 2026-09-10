@@ -12,6 +12,8 @@ interface LightingStore {
   connected: boolean;
   transport: TransportType;
   engineConnected: boolean; // Is the python websocket connected?
+  musicSettings: any;
+  setMusicColors: (bass?: RGBColor, mid?: RGBColor, treb?: RGBColor) => void;
   analyzers: {
     screen_analyzer?: string;
   };
@@ -35,6 +37,7 @@ export const useLightingStore = create<LightingStore>((set) => ({
   connected: false,
   transport: 'none',
   engineConnected: false,
+  musicSettings: { bass_color: {r:255,g:0,b:0}, mid_color: {r:0,g:255,b:0}, treb_color: {r:0,g:0,b:255} },
   analyzers: {},
 
   setMode: (mode) => {
@@ -52,6 +55,9 @@ export const useLightingStore = create<LightingStore>((set) => ({
     set({ power_on: isOn });
   },
 
+  setMusicColors: (bass, mid, treb) => {
+    lightingService.setMusicColors(bass, mid, treb);
+  },
   setColor: (color) => {
     lightingService.setColor(color);
     set({ color }); // optimistic update
@@ -80,6 +86,7 @@ export const useLightingStore = create<LightingStore>((set) => ({
         connected: state.connected,
         transport: state.transport,
         analyzers: state.analyzers || {},
+        musicSettings: (state as any).musicSettings || { bass_color: {r:255,g:0,b:0}, mid_color: {r:0,g:255,b:0}, treb_color: {r:0,g:0,b:255} },
       });
     });
 

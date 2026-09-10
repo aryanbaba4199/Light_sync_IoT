@@ -11,6 +11,10 @@ export class RealLightingService implements ILightingService {
   private reconnectTimer: any = null;
   private backoff = 1000;
   private maxBackoff = 5000;
+  private commandQueue: Map<string, any> = new Map();
+  private pingTimer: any = null;
+  private pongTimeout: any = null;
+
 
   async connect(): Promise<void> {
     if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
@@ -28,13 +32,23 @@ export class RealLightingService implements ILightingService {
           this.backoff = 1000; // reset
           this.notifyConnection(true);
           
+          this.startHeartbeat();
+          
           // Request initial state
           this.getState().catch(console.error);
+          
+          // Flush queue
+          this.commandQueue.forEach((payload, type) => {
+             this.sendCommand(type, payload, true);
+          });
+          this.commandQueue.clear();
+          
           resolve();
         };
 
         this.ws.onclose = () => {
           console.log('[LightingService] Disconnected from Engine');
+          this.stopHeartbeat();
           this.notifyConnection(false);
           this.ws = null;
           this.scheduleReconnect();
@@ -64,6 +78,7 @@ export class RealLightingService implements ILightingService {
 
   disconnect(): void {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.stopHeartbeat();
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -84,6 +99,14 @@ export class RealLightingService implements ILightingService {
   private handleMessage(data: any) {
     if (data.version !== 1) return;
 
+    if (data.type === 'pong') {
+      if (this.pongTimeout) {
+        clearTimeout(this.pongTimeout);
+        this.pongTimeout = null;
+      }
+      return;
+    }
+
     if (data.type === 'lighting_state') {
       const p = data.payload;
       const mappedState: LightingState = {
@@ -95,7 +118,8 @@ export class RealLightingService implements ILightingService {
         renderBrightness: (p.render_brightness ?? p.brightness) * 100, // Smoothed brightness
         connected: p.device.connected,
         transport: p.device.transport === 'serial' ? 'usb' : 'none',
-        analyzers: p.analyzers
+        analyzers: p.analyzers,
+        musicSettings: data.payload.music_settings
       };
       
       this.stateCallbacks.forEach(cb => cb(mappedState));
@@ -105,9 +129,12 @@ export class RealLightingService implements ILightingService {
     }
   }
 
-  private sendCommand(type: string, payload: any = {}): void {
+  private sendCommand(type: string, payload: any = {}, ignoreQueue = false): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.warn(`[LightingService] Cannot send ${type}, engine disconnected.`);
+      if (!ignoreQueue) {
+        console.warn(`[LightingService] Cannot send ${type}, queuing until connected.`);
+        this.commandQueue.set(type, payload);
+      }
       return;
     }
     
@@ -118,6 +145,26 @@ export class RealLightingService implements ILightingService {
     };
     
     this.ws.send(JSON.stringify(msg));
+  }
+
+  private startHeartbeat() {
+    this.stopHeartbeat();
+    this.pingTimer = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.sendCommand('ping', {}, true);
+        this.pongTimeout = setTimeout(() => {
+          console.warn('[LightingService] Engine missed pong. Forcing reconnect.');
+          if (this.ws) this.ws.close();
+        }, 5000); // 5 sec to reply
+      }
+    }, 15000); // Ping every 15s
+  }
+
+  private stopHeartbeat() {
+    if (this.pingTimer) clearInterval(this.pingTimer);
+    if (this.pongTimeout) clearTimeout(this.pongTimeout);
+    this.pingTimer = null;
+    this.pongTimeout = null;
   }
 
   async getState(): Promise<LightingState> {
@@ -144,6 +191,10 @@ export class RealLightingService implements ILightingService {
 
   async setBrightness(value: number): Promise<void> {
     this.sendCommand('set_brightness', { value: value / 100.0 });
+  }
+
+  async setMusicColors(bass?: RGBColor, mid?: RGBColor, treb?: RGBColor): Promise<void> {
+    this.sendCommand("set_music_colors", { bass_color: bass, mid_color: mid, treb_color: treb });
   }
 
   async setColor(color: RGBColor): Promise<void> {
