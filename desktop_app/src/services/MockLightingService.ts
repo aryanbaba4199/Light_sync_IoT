@@ -105,6 +105,20 @@ export class MockLightingService implements ILightingService {
     this.notifyState();
   }
 
+  async setMusicAudioSource(source: 'system' | 'microphone', device?: string | null): Promise<void> {
+    this.state.musicSettings = {
+      ...(this.state.musicSettings || {}),
+      audio_source: source,
+      system_audio_device: device ?? null
+    };
+    if (this.state.analyzers) {
+      this.state.analyzers.audio_source = source;
+      this.state.analyzers.audio_device = device || (source === 'system' ? 'System Loopback' : 'Microphone');
+      this.state.analyzers.audio_status = 'ready';
+    }
+    this.notifyState();
+  }
+
   async setMovieLayout(layout: any): Promise<void> {
     this.state.movieLayout = layout;
     this.notifyState();

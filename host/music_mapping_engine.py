@@ -77,8 +77,8 @@ class FlashEventManager:
         inst = instrument.lower()
         if inst == "hihat":
             return (0.045, 0.050)  # Very short, crisp 45ms flash, 50ms cooldown
-        elif inst == "snare":
-            return (0.075, 0.085)  # Fast 75ms flash, 85ms cooldown
+        elif inst in ("clap", "snare"):
+            return (0.065, 0.080)  # Crisp 65ms clap flash, 80ms cooldown
         elif inst == "kick":
             return (0.085, 0.095)  # Strong, punchy 85ms flash, 95ms cooldown
         elif inst == "bass":
@@ -120,8 +120,10 @@ class FlashEventManager:
             if analysis.kick_trigger or analysis.kick >= max(0.20, 0.45 / s):
                 triggered = True
 
-        elif inst == "snare":
-            if analysis.snare_trigger or analysis.snare >= max(0.20, 0.40 / s):
+        elif inst in ("clap", "snare"):
+            clap_trig = getattr(analysis, "clap_trigger", False) or getattr(analysis, "snare_trigger", False)
+            clap_val = getattr(analysis, "clap", getattr(analysis, "snare", 0.0))
+            if clap_trig or clap_val >= max(0.20, 0.40 / s):
                 triggered = True
 
         elif inst == "hihat":
@@ -141,7 +143,7 @@ class FlashEventManager:
         elif inst == "vocal":
             prev_v = self.prev_feature.get(mapping_id, 0.0)
             rise = max(0.0, analysis.vocal - prev_v)
-            if analysis.vocal >= max(0.20, 0.40 / s) and (rise >= 0.15 or analysis.vocal >= 0.65):
+            if analysis.vocal >= max(0.12, 0.22 / s) or (rise >= 0.08 and analysis.vocal >= 0.15):
                 triggered = True
             self.prev_feature[mapping_id] = analysis.vocal
 
@@ -251,10 +253,8 @@ class MusicMappingEngine:
                 raw_intensity = max(0.0, min(1.0, feat_val * mapping.sensitivity))
                 applied_intensity = self.effect_processor.process(mapping.id, mapping.response, raw_intensity)
 
-            # Master brightness applied exactly once
             final_intensity = applied_intensity * master_mult
 
-            # Calculate color components
             cr = max(0, min(255, int(mapping.color.r * final_intensity)))
             cg = max(0, min(255, int(mapping.color.g * final_intensity)))
             cb = max(0, min(255, int(mapping.color.b * final_intensity)))
@@ -262,7 +262,6 @@ class MusicMappingEngine:
             if cr == 0 and cg == 0 and cb == 0:
                 continue
 
-            # Apply to LEDs based on distribution
             if mapping.distribution == DistributionType.RANDOM.value:
                 assigned_leds = self._get_random_indices(mapping)
                 for led_idx in assigned_leds:

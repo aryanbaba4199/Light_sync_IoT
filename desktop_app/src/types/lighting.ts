@@ -20,6 +20,7 @@ export const DEFAULT_LED_COUNT = 300;
 export type MusicInstrument =
   | 'bass'
   | 'kick'
+  | 'clap'
   | 'snare'
   | 'vocal'
   | 'hihat'
@@ -74,6 +75,15 @@ export interface MovieSettings {
 }
 
 
+export interface AudioDeviceInfo {
+  id: number;
+  name: string;
+  channels: number;
+  sample_rate: number;
+  type: 'system' | 'microphone';
+  is_default?: boolean;
+}
+
 export interface LightingState {
   mode: LightingMode;
   outputMode: OutputMode;
@@ -99,13 +109,20 @@ export interface LightingState {
   renderBrightness?: number; // The smoothed output for visuals
   connected: boolean;
   transport: TransportType;
+  availableAudioDevices?: AudioDeviceInfo[];
   analyzers?: {
     screen_analyzer?: string;
     music_analyzer?: string;
+    audio_source?: string;
+    audio_device?: string;
+    audio_status?: string;
+    audio_status_message?: string;
+    available_devices?: AudioDeviceInfo[];
   };
   audioTelemetry?: {
     bass?: number;
     kick?: number;
+    clap?: number;
     snare?: number;
     vocal?: number;
     hihat?: number;
@@ -114,10 +131,14 @@ export interface LightingState {
     beat?: number;
     overall?: number;
     kick_trigger?: boolean;
+    clap_trigger?: boolean;
     snare_trigger?: boolean;
     hihat_trigger?: boolean;
     music_gate_open?: boolean;
     bass_transient?: number;
+    audio_source?: string;
+    audio_device?: string;
+    audio_status?: string;
   };
 }
 

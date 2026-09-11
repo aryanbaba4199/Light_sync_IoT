@@ -13,13 +13,15 @@ LED_COUNT = 300
 class MusicInstrument(str, Enum):
     BASS = "bass"
     KICK = "kick"
-    SNARE = "snare"
+    CLAP = "clap"
     VOCAL = "vocal"
     HIHAT = "hihat"
     BRASS = "brass"
     MELODY = "melody"
     BEAT = "beat"
     OVERALL = "overall"
+    # Backwards compatibility alias
+    SNARE = "snare"
 
 class ResponseEffect(str, Enum):
     STATIC = "static"
@@ -88,9 +90,12 @@ class MusicMapping:
     def from_dict(cls, data: dict) -> 'MusicMapping':
         color_val = data.get("color", {"r": 255, "g": 0, "b": 0})
         color = RGBColor.from_dict(color_val) if isinstance(color_val, dict) else RGBColor()
+        inst = str(data.get("instrument", MusicInstrument.BASS.value)).lower()
+        if inst == "snare":
+            inst = "clap"
         return cls(
             id=str(data.get("id", str(uuid.uuid4())[:8])),
-            instrument=str(data.get("instrument", MusicInstrument.BASS.value)),
+            instrument=inst,
             color=color,
             start_led=int(data.get("start_led", 1)),
             end_led=int(data.get("end_led", 30)),
@@ -105,7 +110,7 @@ class MusicMapping:
 class MusicAnalysis:
     bass: float = 0.0
     kick: float = 0.0
-    snare: float = 0.0
+    clap: float = 0.0
     vocal: float = 0.0
     hihat: float = 0.0
     brass: float = 0.0
@@ -114,31 +119,66 @@ class MusicAnalysis:
     overall: float = 0.0
     # Audio Analysis V2 Trigger and Telemetry fields
     kick_trigger: bool = False
-    snare_trigger: bool = False
+    clap_trigger: bool = False
     hihat_trigger: bool = False
     music_gate_open: bool = False
     bass_transient: float = 0.0
+    # Advanced MIR Analysis Fields (HPSS & YIN Pitch Tracking)
+    vocal_pitch: float = 0.0
+    vocal_confidence: float = 0.0
+    harmonic_ratio: float = 0.0
+    # Audio Source & Device Metadata
+    audio_source: str = "system"
+    audio_device: str = "None"
+    audio_status: str = "stopped"
+    # Backward compatibility fields for legacy callers
+    snare: Optional[float] = None
+    snare_trigger: Optional[bool] = None
+
+    def __post_init__(self):
+        if self.snare is not None:
+            if self.clap == 0.0:
+                self.clap = float(self.snare)
+        else:
+            self.snare = self.clap
+
+        if self.snare_trigger is not None:
+            if not self.clap_trigger:
+                self.clap_trigger = bool(self.snare_trigger)
+        else:
+            self.snare_trigger = self.clap_trigger
 
     def get_feature(self, instrument: str) -> float:
-        val = getattr(self, instrument.lower(), 0.0)
+        inst = instrument.lower()
+        if inst == "snare":
+            inst = "clap"
+        val = getattr(self, inst, 0.0)
         return max(0.0, min(1.0, float(val)))
 
     def to_dict(self) -> dict:
         return {
             "bass": round(self.bass, 3),
             "kick": round(self.kick, 3),
-            "snare": round(self.snare, 3),
+            "clap": round(self.clap, 3),
+            "snare": round(self.clap, 3), # Backward compatibility alias
             "vocal": round(self.vocal, 3),
+            "vocal_pitch": round(self.vocal_pitch, 1),
+            "vocal_confidence": round(self.vocal_confidence, 3),
+            "harmonic_ratio": round(self.harmonic_ratio, 3),
             "hihat": round(self.hihat, 3),
             "brass": round(self.brass, 3),
             "melody": round(self.melody, 3),
             "beat": round(self.beat, 3),
             "overall": round(self.overall, 3),
             "kick_trigger": self.kick_trigger,
-            "snare_trigger": self.snare_trigger,
+            "clap_trigger": self.clap_trigger,
+            "snare_trigger": self.clap_trigger, # Backward compatibility alias
             "hihat_trigger": self.hihat_trigger,
             "music_gate_open": self.music_gate_open,
-            "bass_transient": round(self.bass_transient, 3)
+            "bass_transient": round(self.bass_transient, 3),
+            "audio_source": self.audio_source,
+            "audio_device": self.audio_device,
+            "audio_status": self.audio_status
         }
 
 def validate_mapping(mapping: MusicMapping, max_leds: int = LED_COUNT) -> Tuple[bool, Optional[str]]:
@@ -153,7 +193,7 @@ def validate_mapping(mapping: MusicMapping, max_leds: int = LED_COUNT) -> Tuple[
     if mapping.start_led > mapping.end_led:
         return False, f"Start LED ({mapping.start_led}) must be <= End LED ({mapping.end_led})"
     
-    valid_instruments = [i.value for i in MusicInstrument]
+    valid_instruments = [i.value for i in MusicInstrument] + ["snare"]
     if mapping.instrument not in valid_instruments:
         return False, f"Unknown instrument '{mapping.instrument}'"
 
@@ -268,8 +308,8 @@ PARTY_PRESET: List[dict] = [
     },
     {
         "id": "party_3",
-        "instrument": "snare",
-        "color": {"r": 255, "g": 220, "b": 0},
+        "instrument": "clap",
+        "color": {"r": 255, "g": 200, "b": 0},
         "start_led": 81,
         "end_led": 130,
         "sensitivity": 1.1,
@@ -343,8 +383,8 @@ FULL_BAND_PRESET: List[dict] = [
     },
     {
         "id": "band_3",
-        "instrument": "snare",
-        "color": {"r": 255, "g": 200, "b": 0},
+        "instrument": "clap",
+        "color": {"r": 255, "g": 190, "b": 0},
         "start_led": 71,
         "end_led": 110,
         "sensitivity": 1.1,

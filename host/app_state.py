@@ -50,6 +50,8 @@ class AppState:
                 "smoothing": 0.5, 
                 "brightness_limit": 1.0,
                 "response_mode": "flash",
+                "audio_source": "system",
+                "system_audio_device": None,
                 "mappings": [dict(m) for m in DEFAULT_3_BAND_PRESET],
                 "bass_color": {"r": 255, "g": 0, "b": 0},
                 "mid_color": {"r": 0, "g": 255, "b": 0},
@@ -178,6 +180,10 @@ class AppState:
                 music_conf["response_mode"] = "flash"
             dirty = True
 
+        if "audio_source" not in music_conf or music_conf["audio_source"] not in ["system", "microphone"]:
+            music_conf["audio_source"] = "system"
+            dirty = True
+
         if "mappings" not in music_conf or not isinstance(music_conf["mappings"], list) or len(music_conf["mappings"]) == 0:
             music_conf["mappings"] = [dict(m) for m in DEFAULT_3_BAND_PRESET]
             # If legacy colors were set, migrate them to the 3 band preset
@@ -188,6 +194,12 @@ class AppState:
             if "treb_color" in music_conf:
                 music_conf["mappings"][2]["color"] = music_conf["treb_color"]
             dirty = True
+        else:
+            # Normalize any legacy 'snare' mapping to 'clap'
+            for m in music_conf["mappings"]:
+                if m.get("instrument") == "snare":
+                    m["instrument"] = "clap"
+                    dirty = True
 
         if dirty:
             self.save()
@@ -319,6 +331,22 @@ class AppState:
     def set_music_response_mode(self, mode: str) -> bool:
         if mode in ["fade", "flash"]:
             self.settings.setdefault("music", {})["response_mode"] = mode
+            self.save()
+            return True
+        return False
+
+    def get_music_audio_source(self) -> str:
+        return self.settings.get("music", {}).get("audio_source", "system")
+
+    def get_music_audio_device(self) -> Optional[str]:
+        return self.settings.get("music", {}).get("system_audio_device", None)
+
+    def set_music_audio_source(self, source_type: str, preferred_device: Optional[str] = None) -> bool:
+        st = str(source_type).lower().strip()
+        if st in ["system", "microphone"]:
+            self.settings.setdefault("music", {})["audio_source"] = st
+            if preferred_device is not None:
+                self.settings["music"]["system_audio_device"] = preferred_device if preferred_device else None
             self.save()
             return True
         return False

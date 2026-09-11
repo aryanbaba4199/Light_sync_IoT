@@ -1,4 +1,5 @@
 import asyncio
+import time
 import json
 import websockets
 import logging
@@ -102,6 +103,7 @@ class DevLightsAPI:
                 ),
                 "led_frame": self._get_led_frame_sample(),
                 "led_count": getattr(self.app_state, "led_count", 300),
+                "available_audio_devices": self.analyzer_manager.get_available_devices() if self.analyzer_manager else [],
                 "audio_telemetry": getattr(self.engine, "latest_music_analysis", None).to_dict() if getattr(self.engine, "latest_music_analysis", None) else {}
             }
         }
@@ -227,6 +229,22 @@ class DevLightsAPI:
                         await self._send_error(websocket, "INVALID_RESPONSE_MODE", f"Invalid response mode '{mode}'. Must be 'fade' or 'flash'")
                 else:
                     await self._send_error(websocket, "MISSING_PARAM", "Missing response_mode in payload")
+
+            elif msg_type == "set_music_audio_source":
+                source = payload.get("audio_source") or payload.get("source")
+                device = payload.get("system_audio_device") or payload.get("device")
+                if source:
+                    source = str(source).lower()
+                    if source in ["system", "microphone"]:
+                        self.app_state.set_music_audio_source(source, device)
+                        if self.analyzer_manager:
+                            self.analyzer_manager.check_state()
+                        logger.info(f"Music audio source set to {source} (device={device})")
+                        await self.broadcast_state()
+                    else:
+                        await self._send_error(websocket, "INVALID_SOURCE", f"Invalid audio source '{source}'. Must be 'system' or 'microphone'")
+                else:
+                    await self._send_error(websocket, "MISSING_PARAM", "Missing audio_source in payload")
 
             elif msg_type == "set_movie_layout":
                 layout_data = payload.get("layout", payload)
@@ -478,6 +496,7 @@ class DevLightsAPI:
                         "custom_settings": self.app_state.get_custom_settings() if hasattr(self.app_state, "get_custom_settings") else {},
                         "led_frame": self._get_led_frame_sample(),
                         "led_count": getattr(self.app_state, "led_count", 300),
+                        "available_audio_devices": self.analyzer_manager.get_available_devices() if self.analyzer_manager else [],
                         "audio_telemetry": getattr(self.engine, "latest_music_analysis", None).to_dict() if getattr(self.engine, "latest_music_analysis", None) else {}
                     }
                 }

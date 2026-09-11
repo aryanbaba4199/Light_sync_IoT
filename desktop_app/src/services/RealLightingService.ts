@@ -133,6 +133,8 @@ export class RealLightingService implements ILightingService {
         connected: p.device.connected,
         transport: p.device.transport === 'serial' ? 'usb' : 'none',
         analyzers: p.analyzers,
+        availableAudioDevices: p.available_audio_devices || p.analyzers?.available_devices || [],
+        audioTelemetry: p.audio_telemetry,
         musicSettings: p.music_settings,
         musicResponseMode: (p.response_mode || p.music_settings?.response_mode || 'flash') as any,
         musicMappings,
@@ -263,6 +265,10 @@ export class RealLightingService implements ILightingService {
 
   async setMusicResponseMode(mode: MusicResponseMode): Promise<void> {
     this.sendCommand('set_music_response_mode', { response_mode: mode });
+  }
+
+  async setMusicAudioSource(source: 'system' | 'microphone', device?: string | null): Promise<void> {
+    this.sendCommand('set_music_audio_source', { audio_source: source, device: device ?? null });
   }
 
   async setMovieLayout(layout: any): Promise<void> {

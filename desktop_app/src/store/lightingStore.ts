@@ -11,7 +11,8 @@ import type {
   MovieSettings,
   CustomEffectType,
   CustomEffectConfig,
-  CustomSettings
+  CustomSettings,
+  AudioDeviceInfo
 } from '../types/lighting';
 import { DEFAULT_LED_COUNT } from '../types/lighting';
 import { lightingService } from '../services';
@@ -19,6 +20,7 @@ import { lightingService } from '../services';
 export const INSTRUMENT_COLORS: Record<MusicInstrument, RGBColor> = {
   bass: { r: 255, g: 0, b: 0 },
   kick: { r: 255, g: 100, b: 0 },
+  clap: { r: 255, g: 190, b: 0 },
   snare: { r: 255, g: 210, b: 0 },
   vocal: { r: 180, g: 0, b: 255 },
   hihat: { r: 0, g: 200, b: 255 },
@@ -75,8 +77,16 @@ interface LightingStore {
   analyzers: {
     screen_analyzer?: string;
     music_analyzer?: string;
+    audio_source?: string;
+    audio_device?: string;
+    audio_status?: string;
+    audio_status_message?: string;
+    available_devices?: AudioDeviceInfo[];
   };
   audioTelemetry?: any;
+  audioSource: 'system' | 'microphone';
+  audioDevice?: string | null;
+  availableAudioDevices: AudioDeviceInfo[];
   
   // Actions
   setMode: (mode: LightingMode) => void;
@@ -88,6 +98,7 @@ interface LightingStore {
   setCustomEffectConfig: (effect: CustomEffectType, config: Partial<CustomEffectConfig>) => void;
   triggerDeveloperEvent: (event: string, priority?: number, duration?: number) => void;
   setMusicResponseMode: (mode: MusicResponseMode) => void;
+  setMusicAudioSource: (source: 'system' | 'microphone', device?: string | null) => void;
   setMovieLayout: (layout: Partial<MovieLayout>) => void;
   setMovieMusicSync: (enabled: boolean) => void;
   setMovieSamplingThickness: (thickness: number) => void;
@@ -112,6 +123,9 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
   connected: false,
   transport: 'none',
   engineConnected: false,
+  audioSource: 'system',
+  audioDevice: null,
+  availableAudioDevices: [],
   musicSettings: { bass_color: {r:255,g:0,b:0}, mid_color: {r:0,g:255,b:0}, treb_color: {r:0,g:0,b:255} },
   musicResponseMode: 'flash',
   musicMappings: [
@@ -151,6 +165,7 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
   ledCount: DEFAULT_LED_COUNT,
   validationWarnings: [],
   analyzers: {},
+  audioTelemetry: {},
 
   setMode: (mode) => {
     lightingService.setMode(mode);
@@ -199,6 +214,11 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
   setMusicResponseMode: (mode) => {
     lightingService.setMusicResponseMode(mode);
     set({ musicResponseMode: mode });
+  },
+
+  setMusicAudioSource: (source, device) => {
+    lightingService.setMusicAudioSource(source, device);
+    set({ audioSource: source, audioDevice: device ?? null });
   },
 
   setMovieLayout: (updates) => {
@@ -325,6 +345,9 @@ export const useLightingStore = create<LightingStore>((set, get) => ({
         analyzers: state.analyzers || {},
         musicSettings: (state as any).musicSettings || get().musicSettings,
         musicResponseMode: state.musicResponseMode || (state as any).musicSettings?.response_mode || get().musicResponseMode,
+        audioSource: (state as any).musicSettings?.audio_source || (state as any).analyzers?.audio_source || get().audioSource,
+        audioDevice: (state as any).musicSettings?.system_audio_device || (state as any).analyzers?.audio_device || get().audioDevice,
+        availableAudioDevices: (state as any).availableAudioDevices || (state as any).analyzers?.available_devices || get().availableAudioDevices,
         musicMappings: mappings,
         movieLayout: state.movieLayout || get().movieLayout,
         movieSettings: state.movieSettings || get().movieSettings,

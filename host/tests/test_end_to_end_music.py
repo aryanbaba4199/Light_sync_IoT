@@ -107,7 +107,7 @@ class TestEndToEndMusic(unittest.TestCase):
         self.assertEqual(len(mappings), 6)
         
         instruments = [m["instrument"] for m in mappings]
-        self.assertEqual(instruments, ["bass", "kick", "snare", "vocal", "hihat", "melody"])
+        self.assertEqual(instruments, ["bass", "kick", "clap", "vocal", "hihat", "melody"])
 
         # Reload AppState from the same config file to simulate restart
         reloaded = AppState(self.test_config)

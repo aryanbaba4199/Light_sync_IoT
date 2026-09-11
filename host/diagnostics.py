@@ -28,7 +28,11 @@ class Diagnostics:
             "audio_music_gate": False,
             "audio_kick_trigger": False,
             "audio_snare_trigger": False,
-            "audio_hihat_trigger": False
+            "audio_clap_trigger": False,
+            "audio_hihat_trigger": False,
+            "audio_vocal_pitch": 0.0,
+            "audio_vocal_confidence": 0.0,
+            "audio_harmonic_ratio": 0.0
         }
         self._frame_times = []
         self._last_frame_time = time.time()

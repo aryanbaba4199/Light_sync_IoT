@@ -282,5 +282,61 @@ class TestDualModeBassMapping(unittest.TestCase):
         self.assertEqual(zones_flash_on[0]["r"], 255)
 
 
+class TestNaNAndInfImmunity(unittest.TestCase):
+    def test_noise_floor_resists_nan_and_inf(self):
+        tracker = AdaptiveNoiseFloor()
+        # Seed
+        tracker.update("rms", 0.05)
+        self.assertFalse(np.isnan(tracker.get_floor("rms")))
+
+        # Inject NaN and Inf
+        excess_nan = tracker.update("rms", float("nan"))
+        excess_inf = tracker.update("rms", float("inf"))
+        self.assertEqual(excess_nan, 0.0)
+        self.assertEqual(excess_inf, 0.0)
+        self.assertFalse(np.isnan(tracker.get_floor("rms")))
+
+        # Clean update continues to work normally
+        excess_clean = tracker.update("rms", 0.10)
+        self.assertFalse(np.isnan(excess_clean))
+        self.assertFalse(np.isnan(tracker.get_floor("rms")))
+
+    def test_hysteresis_gate_resists_nan_and_inf(self):
+        gate = HysteresisGate(open_thresh=0.25, close_thresh=0.15)
+        self.assertFalse(gate.is_open)
+
+        # NaN input does not crash or toggle
+        self.assertFalse(gate.update(float("nan")))
+        self.assertFalse(gate.is_open)
+
+        # Normal open
+        self.assertTrue(gate.update(0.30))
+        self.assertTrue(gate.is_open)
+
+        # NaN input maintains current state
+        self.assertTrue(gate.update(float("nan")))
+        self.assertTrue(gate.is_open)
+
+    def test_spectral_extractor_resists_nan_chunks(self):
+        extractor = SpectralFeatureExtractorV2(sample_rate=44100)
+        # Construct chunk with NaNs and huge out-of-bounds floats
+        dirty_chunk = np.zeros(2048, dtype=np.float32)
+        dirty_chunk[0] = np.nan
+        dirty_chunk[10] = np.inf
+        dirty_chunk[20] = -1e35
+
+        analysis = extractor.extract(dirty_chunk, 44100)
+        self.assertFalse(np.isnan(analysis.overall))
+        self.assertFalse(np.isnan(analysis.bass))
+        self.assertFalse(np.isnan(analysis.kick))
+
+        # Subsequent clean chunk is processed with zero corruption
+        clean_chunk = np.sin(2 * np.pi * 60 * np.linspace(0, 0.05, 2048)).astype(np.float32) * 0.8
+        clean_analysis = extractor.extract(clean_chunk, 44100)
+        self.assertFalse(np.isnan(clean_analysis.overall))
+        self.assertFalse(np.isnan(clean_analysis.bass))
+        self.assertGreater(clean_analysis.bass, 0.0)
+
+
 if __name__ == '__main__':
     unittest.main()

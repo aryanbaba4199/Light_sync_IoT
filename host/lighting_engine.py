@@ -214,7 +214,7 @@ class LightingEngine:
         return zones
 
     def _render_loop(self):
-        target_fps = 30
+        target_fps = 60
         frame_time = 1.0 / target_fps
         last_wake_time = time.time()
         
